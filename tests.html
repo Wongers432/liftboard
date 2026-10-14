@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Liftboard tests</title>
+  <style>
+    body { font: 15px/1.4 -apple-system, sans-serif; margin: 16px; background: #0b0b0f; color: #f2f2f5; }
+    .pass { color: #30d158; } .fail { color: #ff453a; font-weight: 700; }
+    h1 { font-size: 20px; } li { margin: 2px 0; }
+  </style>
+</head>
+<body>
+  <h1>Liftboard tests</h1>
+  <p id="summary">Running…</p>
+  <ul id="out"></ul>
+  <script type="module">
+    import { score, tierOf, thresholds, estMax, equivReps, pctToNext, isRanked, entryValue } from './js/ranks.js';
+    import { computeAll, streakWeeks, volumeOf, bodyweightAt, heatmap, weeklyVolume, newMaxesThisMonth, maxSeries } from './js/stats.js';
+    import { EXERCISES, GROUPS } from './js/exercises.js';
+    import { toDisplay, fromDisplay, weekStart, addDays, dayNum, fmtSec } from './js/util.js';
+    import { migrate, fresh } from './js/store.js';
+
+    const out = document.getElementById('out');
+    let pass = 0, fail = 0;
+    const near = (a, b, eps = 1e-6) => Math.abs(a - b) < eps;
+    function t(name, cond, detail = '') {
+      const li = document.createElement('li');
+      li.className = cond ? 'pass' : 'fail';
+      li.textContent = `${cond ? '✓' : '✗'} ${name}${cond ? '' : ` ${detail}`}`;
+      out.appendChild(li);
+      cond ? pass++ : fail++;
+    }
+    const ex = id => EXERCISES.find(e => e.id === id);
+    const BP = thresholds(ex('bench-press'), 'men');
+
+    // Library
+    t('library has 58 exercises', EXERCISES.length === 58, EXERCISES.length);
+    const counts = Object.fromEntries(GROUPS.map(g => [g.id, EXERCISES.filter(e => e.group === g.id).length]));
+    t('group counts 11/10/9/13/10/5', JSON.stringify(counts) === JSON.stringify({ chest: 11, back: 10, shoulders: 9, legs: 13, arms: 10, core: 5 }), JSON.stringify(counts));
+    t('ids are unique', new Set(EXERCISES.map(e => e.id)).size === 58);
+    t('every built-in exercise is ranked', EXERCISES.every(isRanked));
+    t('"rdl" alias finds Romanian Deadlift', ex('romanian-deadlift').aliases.includes('rdl'));
+
+    // Score and tiers
+    const s = score(117.5 / 80, BP);
+    t('worked example: 80 kg man, 117.5 kg bench → Gold', tierOf(s) === 'Gold', s);
+    t('worked example: 94% to Platinum', pctToNext(s) === 94, pctToNext(s));
+    t('worked example score 2.94', s.toFixed(2) === '2.94', s);
+    t('below Silver is Bronze, score x/t0', near(score(0.375, BP), 0.5) && tierOf(score(0.375, BP)) === 'Bronze');
+    t('exactly at Silver threshold is Silver', tierOf(score(0.75, BP)) === 'Silver');
+    t('exactly at Gold threshold is Gold (2.00)', near(score(1.0, BP), 2));
+    t('exactly at Champion is 5.0', near(score(2.4, BP), 5) && tierOf(score(2.4, BP)) === 'Champion');
+    t('above Champion climbs at Diamond→Champion spacing', near(score(2.6, BP), 5.5));
+    t('score caps at 6.0', score(10, BP) === 6);
+    t('zero/negative scores 0', score(0, BP) === 0 && score(-1, BP) === 0);
+    t('factor scaling: incline at 0.85', near(thresholds(ex('incline-bench-press'))[1], 0.85));
+    t('float-safe thresholds: incline exactly at Platinum', tierOf(score(1.275, thresholds(ex('incline-bench-press')))) === 'Platinum');
+    t("women's BP = men's × 0.6", near(thresholds(ex('bench-press'), 'women')[1], 0.6));
+    t("women's squat = men's × 0.75", near(thresholds(ex('squat'), 'women')[0], 0.9375));
+    t("women's pull-up = × 0.4", near(thresholds(ex('pull-up'), 'women')[0], 2));
+    t("women's plank unchanged", thresholds(ex('plank'), 'women')[0] === 60);
+    t('chin-up = pull-up × 1.1', near(thresholds(ex('chin-up'))[1], 11));
+
+    // Estimates
+    t('estMax 100×5 = 116.67', near(estMax(100, 5), 116.6666667, 1e-4));
+    t('estMax caps reps at 12', near(estMax(100, 20), estMax(100, 12)));
+    t('estMax of a single is the weight', estMax(100, 1) === 100);
+    t('equivalent reps: no added weight = reps', equivReps(10, 0, 80) === 10);
+    t('equivalent reps: 10 dips +20 kg > 10', equivReps(10, 20, 80) > 10);
+    t('equivalent reps formula', near(equivReps(10, 20, 80), 30 * ((100 * (1 + 10 / 30)) / 80 - 1)));
+
+    // Units
+    t('100 kg shows as 220.5 lb', toDisplay(100, 'lb') === 220.5);
+    t('typing 225 lb shows 225 lb again', toDisplay(fromDisplay(225, 'lb'), 'lb') === 225);
+    t('lb stored to 3 decimals', fromDisplay(225, 'lb') === 102.058);
+    for (const lb of [45, 95, 135, 185, 225, 315, 405, 2.5, 7.5, 132.5]) t(`${lb} lb round-trips`, toDisplay(fromDisplay(lb, 'lb'), 'lb') === lb);
+    t('fmtSec 90 → 1:30', fmtSec(90) === '1:30');
+
+    // Dates
+    t('weekStart of Tue 14 Oct 2026 is Mon 12 Oct', weekStart('2026-10-14') === '2026-10-12');
+    t('weekStart of Sun is the previous Monday', weekStart('2026-10-18') === '2026-10-12');
+    t('addDays across months', addDays('2026-10-31', 1) === '2026-11-01');
+    t('addDays across DST (29 Mar 2026)', addDays('2026-03-28', 2) === '2026-03-30');
+
+    // Bodyweight
+    const bw = [{ date: '2026-01-01', kg: 80 }, { date: '2026-06-01', kg: 90 }];
+    t('bodyweight on a date uses latest before', bodyweightAt(bw, '2026-07-01') === 90 && bodyweightAt(bw, '2026-03-01') === 80);
+    t('bodyweight before any entry uses earliest', bodyweightAt(bw, '2025-01-01') === 80);
+    t('no bodyweight uses 80 kg (men) / 65 kg (women)', bodyweightAt([], '2026-01-01', 'men') === 80 && bodyweightAt([], '2026-01-01', 'women') === 65);
+
+    // Volume
+    t('set volume = kg × reps', volumeOf(ex('bench-press'), { type: 'set', kg: 100, reps: 5 }) === 500);
+    t('Per DB counts both dumbbells', volumeOf(ex('dumbbell-curl'), { type: 'set', kg: 15, reps: 10 }) === 300);
+    t('Max counts as 1 rep', volumeOf(ex('squat'), { type: 'max', kg: 140 }) === 140);
+    t('reps exercises left out of volume', volumeOf(ex('dip'), { type: 'set', reps: 10, added: 20 }) === 0);
+
+    // computeAll
+    const T = '2026-10-14';
+    const doc = fresh();
+    doc.bodyweight = [{ date: '2026-10-01', kg: 80 }];
+    doc.entries = [
+      { id: 'a', type: 'max', ex: 'bench-press', date: '2026-10-02', kg: 117.5 },
+      { id: 'b', type: 'set', ex: 'bench-press', date: '2026-10-13', kg: 100, reps: 5 },
+      { id: 'c', type: 'max', ex: 'bench-press', date: '2026-10-13', kg: 110 },
+      { id: 'd', type: 'set', ex: 'squat', date: '2026-10-13', kg: 120, reps: 5 },
+      { id: 'e', type: 'max', ex: 'dip', date: '2026-10-13', reps: 10, added: 20 },
+      { id: 'f', type: 'max', ex: 'plank', date: '2026-10-13', sec: 90 },
+      { id: 'g', type: 'max', ex: 'deadlift', date: '2026-09-01', kg: 180 },
+      { id: 'z', type: 'set', ex: 'deleted-custom', date: '2026-10-13', kg: 50, reps: 5 },
+    ];
+    const lib = EXERCISES;
+    let st = computeAll(doc, lib, T);
+    const b = st.byEx.get('bench-press');
+    t('best Max is best-ever, not latest', b.best.id === 'a' && b.bestValue === 117.5);
+    t('bench is Gold 94%', b.tierIdx === 2 && b.pct === 94, `${b.tierIdx} ${b.pct}`);
+    t('lower later Max does not create a PR', b.prs.length === 1);
+    t('sets with no Max: no rank', st.byEx.get('squat').tierIdx === null && st.byEx.get('squat').bestSet.kg === 120);
+    t('squat estimated max from sets', near(st.byEx.get('squat').bestEst, 140));
+    t('plank 90s = Gold', st.byEx.get('plank').tierIdx === 2);
+    t('entries for unknown exercises ignored', !st.byEx.has('deleted-custom'));
+    t('workouts = distinct days', st.workoutDays.size === 3, st.workoutDays.size);
+    t('total volume', st.totalVolume === 117.5 + 500 + 110 + 600 + 180, st.totalVolume);
+    t('overall ranked with ≥3 groups', st.overall.ranked && st.overall.groupsRanked === 3, st.overall.groupsRanked);
+    t('chest group uses best chest exercise', near(st.groups.chest.score, Math.max(b.score, st.byEx.get('dip').score)));
+    t('radar groups with no Max are null', st.groups.shoulders === null && st.groups.arms === null);
+    t('flame for PR in last 7 days', st.byEx.get('plank').flame && !st.byEx.get('deadlift').flame);
+    t('PR list newest first', st.prs[0].date >= st.prs[st.prs.length - 1].date);
+    t('new maxes this month', newMaxesThisMonth(st.prs, T) === 3, newMaxesThisMonth(st.prs, T));
+
+    // Ranks never decay
+    doc.bodyweight.push({ date: '2026-10-14', kg: 100 });
+    st = computeAll(doc, lib, T);
+    const b2 = st.byEx.get('bench-press');
+    t('heavier bodyweight lowers current score', b2.score < b.score);
+    t('…but earned tier stays Gold', b2.tierIdx === 2, b2.tierIdx);
+    t('…and progress bar moves', b2.pct < 94, b2.pct);
+    doc.bodyweight.pop();
+
+    // Deleting the best Max recalculates
+    const saved = doc.entries.splice(0, 1);
+    st = computeAll(doc, lib, T);
+    t('deleting best Max falls back to next best', st.byEx.get('bench-press').bestValue === 110);
+    doc.entries.unshift(...saved);
+
+    // Custom exercises
+    const custom = [{ id: 'c_belt', name: 'Belt Squat', group: 'legs', kind: 'weight', base: 'SQ', factor: 1.1, custom: true, aliases: [] },
+      { id: 'c_x', name: 'Mystery', group: 'arms', kind: 'weight', custom: true, aliases: [] }];
+    doc.entries.push({ id: 'h', type: 'max', ex: 'c_belt', date: T, kg: 150 }, { id: 'i', type: 'max', ex: 'c_x', date: T, kg: 50 });
+    st = computeAll(doc, [...lib, ...custom], T);
+    t('custom with base lift is ranked', st.byEx.get('c_belt').tierIdx != null);
+    t('custom without base lift shows no badge', st.byEx.get('c_x').tierIdx === null);
+
+    // Streak
+    const days = new Set(['2026-10-13', '2026-10-06', '2026-09-29', '2026-09-15']);
+    t('weekly streak counts back from this week', streakWeeks(days, T) === 3, streakWeeks(days, T));
+    t('streak survives a week in progress with no workout yet', streakWeeks(new Set(['2026-10-06', '2026-09-29']), T) === 2);
+    t('streak is 0 after a missed week', streakWeeks(new Set(['2026-09-22']), T) === 0);
+
+    // Heatmap and weekly volume
+    const cells = heatmap(st.workoutDays, st.dayVolume, T);
+    t('heatmap is 20 × 7', cells.length === 140 && cells[cells.length - 1].col === 19);
+    t('heatmap busiest day is level 4', cells.some(c => c.level === 4));
+    t('heatmap marks future days', cells.filter(c => c.future).length === 4, cells.filter(c => c.future).length);
+    const wv = weeklyVolume(doc, st.lib, T);
+    t('weekly volume: 12 weeks ending this week', wv.weeks.length === 12 && wv.weeks[11] === '2026-10-12');
+    t('weekly volume stacked by group', wv.byGroup.legs[11] === 750 && wv.byGroup.chest[11] === 610 && wv.byGroup.back[11] === 0, JSON.stringify(wv.byGroup.legs.slice(-2)));
+
+    // Max series
+    const ms = maxSeries(st.byEx.get('bench-press'), 80);
+    t('max step line only moves up', ms.step.every((p, i) => i === 0 || p.y >= ms.step[i - 1].y));
+
+    // Store migration
+    t('migrate(null) → null', migrate(null) === null);
+    let threw = false; try { migrate({ hello: 1 }); } catch { threw = true; }
+    t('migrate rejects foreign JSON', threw);
+    const m = migrate({ version: 1, entries: [{ id: 'x', type: 'set', ex: 'squat', date: '2026-01-01', kg: 100, reps: 5 }, { id: 'x', type: 'set', ex: 'squat', date: '2026-01-01', kg: 1, reps: 1 }, { bad: true }], settings: { unit: 'stone' } });
+    t('migrate drops duplicates and junk, fixes settings', m.entries.length === 1 && m.settings.unit === 'kg' && Array.isArray(m.custom));
+
+    // Performance
+    const big = fresh();
+    for (let i = 0; i < 3000; i++) big.entries.push({ id: 'p' + i, type: i % 20 ? 'set' : 'max', ex: EXERCISES[i % 30].id, date: addDays('2026-04-01', i % 190), kg: 50 + (i % 40), reps: 5 });
+    const t0 = performance.now();
+    computeAll(big, EXERCISES, T);
+    const ms3000 = performance.now() - t0;
+    t(`computeAll on 3,000 entries under 100 ms (${ms3000.toFixed(1)} ms)`, ms3000 < 100);
+
+    document.getElementById('summary').innerHTML = fail ? `<span class="fail">${fail} failed</span>, ${pass} passed` : `<span class="pass">All ${pass} passed</span>`;
+    window.__results = { pass, fail };
+  </script>
+</body>
+</html>

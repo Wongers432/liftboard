@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Liftboard</title>
+  <meta name="description" content="Log your lifts, track your Max and rank up from Bronze to Champion. Works offline.">
+  <meta name="theme-color" content="#0b0b0f">
+  <meta name="color-scheme" content="dark light">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Liftboard">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/180.png">
+  <link rel="icon" type="image/png" href="icons/192.png">
+  <link rel="stylesheet" href="css/app.css">
+  <script src="vendor/chart.umd.min.js" defer></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <h1 class="app-name">Liftboard</h1>
+      <button type="button" class="icon-btn" id="open-settings" aria-label="Settings"></button>
+    </header>
+
+    <main id="main">
+      <section id="view-lifts" class="view" aria-label="Lifts"></section>
+      <section id="view-progress" class="view" aria-label="Progress" hidden></section>
+    </main>
+
+    <nav class="tabbar" aria-label="Tabs">
+      <button type="button" class="tab" data-tab="lifts" aria-current="page"><span class="tab-ic" data-icon="dumbbell"></span><span>Lifts</span></button>
+      <button type="button" class="tab" data-tab="progress"><span class="tab-ic" data-icon="chart"></span><span>Progress</span></button>
+    </nav>
+  </div>
+
+  <div id="sheet-wrap" class="sheet-wrap" hidden>
+    <div class="sheet-backdrop" data-close></div>
+    <div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-label="Exercise"></div>
+  </div>
+
+  <section id="settings" class="page" aria-label="Settings" hidden></section>
+  <div id="welcome" class="page welcome" hidden></div>
+
+  <button type="button" id="update-bar" class="update-bar" hidden>Update ready, tap to reload</button>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <noscript><p style="padding:24px">Liftboard needs JavaScript turned on.</p></noscript>
+</body>
+</html>
