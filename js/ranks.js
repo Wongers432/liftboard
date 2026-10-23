@@ -6,12 +6,13 @@ export const TIERS = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Champi
 export const DIVS = ['III', 'II', 'I'];
 
 // Max ÷ bodyweight needed to reach Silver, Gold, Platinum, Diamond, Champion (men's).
+// Platinum is lifting your own bodyweight; squat and deadlift climb faster above it.
 export const WEIGHT_STANDARDS = {
-  BP: [0.75, 1.0, 1.5, 2.0, 2.4],
-  SQ: [1.25, 1.5, 2.25, 2.75, 3.25],
-  DL: [1.5, 2.0, 2.5, 3.0, 3.5],
-  OHP: [0.55, 0.75, 1.0, 1.25, 1.5],
-  ROW: [0.75, 1.0, 1.25, 1.5, 1.8],
+  BP: [0.5, 0.75, 1.0, 1.25, 1.5],
+  SQ: [0.5, 0.75, 1.0, 1.5, 2.0],
+  DL: [0.5, 0.75, 1.0, 1.5, 2.0],
+  OHP: [0.5, 0.75, 1.0, 1.25, 1.5],
+  ROW: [0.5, 0.75, 1.0, 1.25, 1.5],
 };
 // Reps (or seconds for PLANK) needed per tier (men's).
 export const REP_STANDARDS = {

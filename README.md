@@ -8,7 +8,7 @@ Log a Max and your sets for 58 common exercises, earn a rank from Bronze to Cham
 There are six tiers (Bronze, Silver, Gold, Platinum, Diamond, Champion), and every tier below Champion has three divisions (III, II, I).
 Your Max is compared with standards written for an 80 kg man or a 65 kg woman, scaled to your bodyweight:
 
-- **Weighted lifts:** strength grows with roughly bodyweight^⅔, so a heavier lifter needs more kg but a lower Max ÷ bodyweight for the same tier. At 80 kg a Gold bench is 80 kg; at 60 kg it is 66 kg (1.10 × bodyweight); at 100 kg it is 93 kg (0.93 × bodyweight).
+- **Weighted lifts:** Platinum is about lifting your own bodyweight (Silver ½×, Gold ¾×, Platinum 1×, Diamond 1.25×, Champion 1.5×; squat and deadlift need 1.5× and 2× for Diamond and Champion). Strength grows with roughly bodyweight^⅔, so a heavier lifter needs more kg but a lower Max ÷ bodyweight for the same tier. At 80 kg a Platinum bench is 80 kg; at 60 kg it is 66 kg (1.10 × bodyweight); at 100 kg it is 93 kg (0.93 × bodyweight).
 - **Pull-ups, chin-ups, dips and push-ups:** each rep is harder the more you weigh, so the same reps rank higher for a heavier lifter. Added weight counts on top.
 - **Core (planks, leg raises, rollouts, sit-ups):** the same at every bodyweight.
 
