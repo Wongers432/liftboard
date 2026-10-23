@@ -43,31 +43,33 @@
     t('"rdl" alias finds Romanian Deadlift', ex('romanian-deadlift').aliases.includes('rdl'));
 
     // Score and tiers
-    const s = score(117.5 / 80, BP);
-    t('worked example: 80 kg man, 117.5 kg bench → Gold', tierOf(s) === 'Gold', s);
-    t('worked example: 94% to Platinum', pctToNext(s) === 94, pctToNext(s));
-    t('worked example score 2.94', s.toFixed(2) === '2.94', s);
-    t('below Silver is Bronze, score x/t0', near(score(0.375, BP), 0.5) && tierOf(score(0.375, BP)) === 'Bronze');
-    t('exactly at Silver threshold is Silver', tierOf(score(0.75, BP)) === 'Silver');
-    t('exactly at Gold threshold is Gold (2.00)', near(score(1.0, BP), 2));
-    t('exactly at Champion is 5.0', near(score(2.4, BP), 5) && tierOf(score(2.4, BP)) === 'Champion');
-    t('above Champion climbs at Diamond→Champion spacing', near(score(2.6, BP), 5.5));
+    const s = score(75 / 80, BP);
+    t('worked example: 80 kg man, 75 kg bench → Gold', tierOf(s) === 'Gold', s);
+    t('worked example: 75% to Platinum', pctToNext(s) === 75, pctToNext(s));
+    t('worked example score 2.75', s.toFixed(2) === '2.75', s);
+    t('Platinum is a bodyweight bench', near(score(1.0, BP), 3) && tierOf(score(1.0, BP)) === 'Platinum');
+    t('Platinum is a bodyweight squat, deadlift, row and press', ['squat', 'deadlift', 'barbell-row', 'overhead-press'].every(id => near(thresholds(ex(id))[2], 1)));
+    t('below Silver is Bronze, score x/t0', near(score(0.25, BP), 0.5) && tierOf(score(0.25, BP)) === 'Bronze');
+    t('exactly at Silver threshold is Silver', tierOf(score(0.5, BP)) === 'Silver');
+    t('exactly at Gold threshold is Gold (2.00)', near(score(0.75, BP), 2));
+    t('exactly at Champion is 5.0', near(score(1.5, BP), 5) && tierOf(score(1.5, BP)) === 'Champion');
+    t('above Champion climbs at Diamond→Champion spacing', near(score(1.625, BP), 5.5));
     t('score caps at 6.0', score(10, BP) === 6);
     t('zero/negative scores 0', score(0, BP) === 0 && score(-1, BP) === 0);
-    t('factor scaling: incline at 0.85', near(thresholds(ex('incline-bench-press'))[1], 0.85));
-    t('float-safe thresholds: incline exactly at Platinum', tierOf(score(1.275, thresholds(ex('incline-bench-press')))) === 'Platinum');
-    t("women's BP = men's × 0.6", near(thresholds(ex('bench-press'), 'women')[1], 0.6));
-    t("women's squat = men's × 0.75", near(thresholds(ex('squat'), 'women')[0], 0.9375));
+    t('factor scaling: incline at 0.85', near(thresholds(ex('incline-bench-press'))[2], 0.85));
+    t('float-safe thresholds: incline exactly at Platinum', tierOf(score(0.85, thresholds(ex('incline-bench-press')))) === 'Platinum');
+    t("women's BP = men's × 0.6", near(thresholds(ex('bench-press'), 'women')[2], 0.6));
+    t("women's squat = men's × 0.75", near(thresholds(ex('squat'), 'women')[2], 0.75));
     t("women's pull-up = × 0.4", near(thresholds(ex('pull-up'), 'women')[0], 2));
     t("women's plank unchanged", thresholds(ex('plank'), 'women')[0] === 60);
     t('chin-up = pull-up × 1.1', near(thresholds(ex('chin-up'))[1], 11));
 
     // Bodyweight scaling
     t('reference bodyweight: ratio unchanged', near(measure(ex('bench-press'), { kg: 120 }, 80), 1.5));
-    t('Gold bench at 80 kg is 80 kg', near(tierTargets(ex('bench-press'), 'men', 80)[1], 80));
-    const g60 = tierTargets(ex('bench-press'), 'men', 60)[1], g100 = tierTargets(ex('bench-press'), 'men', 100)[1];
-    t('Gold bench at 60 kg ≈ 66 kg (1.10 × bw)', near(g60, 66.04, 0.05), g60);
-    t('Gold bench at 100 kg ≈ 92.8 kg (0.93 × bw)', near(g100, 92.83, 0.05), g100);
+    t('Platinum bench at 80 kg is 80 kg', near(tierTargets(ex('bench-press'), 'men', 80)[2], 80));
+    const g60 = tierTargets(ex('bench-press'), 'men', 60)[2], g100 = tierTargets(ex('bench-press'), 'men', 100)[2];
+    t('Platinum bench at 60 kg ≈ 66 kg (1.10 × bw)', near(g60, 66.04, 0.05), g60);
+    t('Platinum bench at 100 kg ≈ 92.8 kg (0.93 × bw)', near(g100, 92.83, 0.05), g100);
     t('heavier lifter needs more kg but a lower ratio', g100 > g60 && g100 / 100 < g60 / 60);
     t('same 100 kg bench ranks higher at 70 kg than at 95 kg', score(measure(ex('bench-press'), { kg: 100 }, 70), BP) > score(measure(ex('bench-press'), { kg: 100 }, 95), BP));
     t("women's reference is 65 kg", near(strengthBase(65, 'women'), 65));
@@ -142,8 +144,8 @@
     let st = computeAll(doc, lib, T);
     const b = st.byEx.get('bench-press');
     t('best Max is best-ever, not latest', b.best.id === 'a' && b.bestValue === 117.5);
-    t('bench is Gold 94%', b.tierIdx === 2 && b.pct === 94, `${b.tierIdx} ${b.pct}`);
-    t('bench is Gold I, next Platinum III at 120 kg', b.rank.name === 'Gold I' && b.next.name === 'Platinum III' && near(b.next.value, 120), `${b.rank.name} ${b.next?.value}`);
+    t('117.5 kg bench at 80 kg is Diamond 88%', b.tierIdx === 4 && Math.abs(b.pct - 88) <= 1, `${b.tierIdx} ${b.pct}`);
+    t('bench is Diamond I, next Champion at 120 kg', b.rank.name === 'Diamond I' && b.next.name === 'Champion' && near(b.next.value, 120), `${b.rank.name} ${b.next?.value}`);
     t('overall has a division', /^(Bronze|Silver|Gold|Platinum|Diamond) (I|II|III)$|^Champion$/.test(st.overall.rank.name), st.overall.rank.name);
     t('lower later Max does not create a PR', b.prs.length === 1);
     t('sets with no Max: no rank', st.byEx.get('squat').tierIdx === null && st.byEx.get('squat').bestSet.kg === 120);
@@ -164,8 +166,8 @@
     st = computeAll(doc, lib, T);
     const b2 = st.byEx.get('bench-press');
     t('heavier bodyweight lowers current score', b2.score < b.score);
-    t('…but earned tier stays Gold', b2.tierIdx === 2, b2.tierIdx);
-    t('…and progress bar moves', b2.pct < 94, b2.pct);
+    t('…but earned tier stays Diamond', b2.tierIdx === 4, b2.tierIdx);
+    t('…and progress bar moves', b2.pct < 87, b2.pct);
     t('…next target goes up with bodyweight', b2.next.value > b.next.value, b2.next?.value);
     doc.bodyweight.pop();
 
