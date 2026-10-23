@@ -1,7 +1,7 @@
 // Derived numbers: bests, ranks, volume, streaks, PR list. Pure functions;
 // nothing here is stored, everything is recomputed from entries.
 
-import { REF_BW, isRanked, isWeightKind, thresholds, score, measure, entryValue, estMax, tierIndex, pctToNext } from './ranks.js';
+import { REF_BW, isRanked, isWeightKind, thresholds, score, measure, entryValue, estMax, tierIndex, pctToNext, rankInfo, scoreTarget, fromMeasure } from './ranks.js';
 import { GROUPS } from './exercises.js';
 import { dayNum, addDays, weekStart } from './util.js';
 
@@ -40,7 +40,7 @@ export function exerciseStats(ex, entries, ctx) {
     lastDate: sorted.length ? sorted[sorted.length - 1].date : null,
     timesTrained: new Set(sorted.map(e => e.date)).size,
     bestSet: null, bestSetValue: null, bestEst: null, lastSet: sets.length ? sets[sets.length - 1] : null,
-    ranked: isRanked(ex), score: null, earned: null, display: null, tierIdx: null, pct: 0, flame: false,
+    ranked: isRanked(ex), score: null, earned: null, display: null, tierIdx: null, pct: 0, rank: null, next: null, flame: false,
   };
 
   let running = null;
@@ -65,12 +65,19 @@ export function exerciseStats(ex, entries, ctx) {
   if (s.ranked && s.best) {
     const t = thresholds(ex, standards);
     s.thresholds = t;
-    s.score = score(measure(ex, s.best, bwNow), t);
-    s.earned = Math.max(...maxes.map(m => score(measure(ex, m, bwAt(m.date)), t)));
+    s.score = score(measure(ex, s.best, bwNow, standards), t);
+    s.earned = Math.max(...maxes.map(m => score(measure(ex, m, bwAt(m.date), standards), t)));
     // Ranks never decay: the tier is the best ever earned; the bar shows where you are now.
     s.display = Math.max(s.score, s.earned);
     s.tierIdx = tierIndex(s.display);
     s.pct = s.display >= 6 ? 100 : s.score >= s.tierIdx ? pctToNext(s.score) : 0;
+    // Division progress uses today's score, so it drops back if your bodyweight goes up.
+    s.rank = rankInfo(s.display);
+    if (s.rank.nextScore != null) {
+      s.rank.pct = s.score >= s.rank.step / 3 ? rankInfo(s.score).pct : 0;
+      // What it takes to reach the next division at today's bodyweight (kg, reps at bodyweight, or seconds).
+      s.next = { name: s.rank.nextName, value: fromMeasure(ex, scoreTarget(s.rank.nextScore, t), bwNow, standards) };
+    }
   }
   const weekAgo = addDays(today, -6);
   s.flame = s.prs.some(p => p.date >= weekAgo && p.date <= today);
@@ -113,13 +120,15 @@ export function computeAll(data, library, today) {
     groups[s.ex.group] = g;
   }
   const ranked = Object.values(groups).filter(Boolean);
-  const overall = { groupsRanked: ranked.length, ranked: ranked.length >= 3, score: null, display: null, tierIdx: null, pct: 0 };
+  const overall = { groupsRanked: ranked.length, ranked: ranked.length >= 3, score: null, display: null, tierIdx: null, pct: 0, rank: null };
   if (ranked.length) {
     overall.score = ranked.reduce((a, g) => a + g.score, 0) / ranked.length;
     const earned = ranked.reduce((a, g) => a + g.earned, 0) / ranked.length;
     overall.display = Math.max(overall.score, earned);
     overall.tierIdx = tierIndex(overall.display);
     overall.pct = overall.display >= 6 ? 100 : overall.score >= overall.tierIdx ? pctToNext(overall.score) : 0;
+    overall.rank = rankInfo(overall.display);
+    if (overall.rank.nextScore != null) overall.rank.pct = overall.score >= overall.rank.step / 3 ? rankInfo(overall.score).pct : 0;
   }
 
   const prs = [];

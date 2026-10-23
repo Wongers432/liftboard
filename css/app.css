@@ -142,18 +142,51 @@ main { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling
 
 /* ---- Rank badge ---- */
 .badge { position: relative; display: inline-grid; place-items: center; flex: none; color: var(--tc); --tc: var(--t0); }
-.badge svg { width: 100%; height: 100%; fill: var(--tc); }
-.badge b { position: absolute; inset: 0; display: grid; place-items: center; color: #0b0b0f; font-weight: 900; padding-bottom: 8%; }
-.badge-sm { width: 22px; height: 26px; } .badge-sm b { font-size: 12px; }
-.badge-md { width: 34px; height: 40px; } .badge-md b { font-size: 17px; }
-.badge-lg { width: 84px; height: 98px; } .badge-lg b { font-size: 40px; }
+.badge svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, .35)); }
+.badge .hl { fill: none; stroke: rgba(255, 255, 255, .45); stroke-width: 1.5; }
+.badge .mk { fill: rgba(11, 11, 15, .55); }
+.badge .mk-s { fill: none; stroke: rgba(11, 11, 15, .55); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.badge .pips { position: absolute; left: 0; right: 0; bottom: -7px; display: flex; justify-content: center; gap: 3px; }
+.badge .pips i { width: 6px; height: 6px; border-radius: 50%; background: var(--card-2); border: 1px solid var(--tc); }
+.badge .pips i.on { background: var(--tc); }
+.badge-sm { width: 22px; height: 26px; }
+.badge-md { width: 36px; height: 42px; }
+.badge-lg { width: 96px; height: 112px; }
+.badge-lg .pips { bottom: -14px; gap: 6px; } .badge-lg .pips i { width: 10px; height: 10px; border-width: 1.5px; }
 .tier-0 { --tc: var(--t0); } .tier-1 { --tc: var(--t1); } .tier-2 { --tc: var(--t2); }
 .tier-3 { --tc: var(--t3); } .tier-4 { --tc: var(--t4); } .tier-5 { --tc: var(--t5); }
-.badge.tier-5 svg { filter: drop-shadow(0 0 4px var(--t5)) drop-shadow(0 0 10px color-mix(in srgb, var(--t5) 60%, transparent)); }
+.badge.tier-4 svg { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--t4) 70%, transparent)); }
+.badge.tier-5 svg { filter: drop-shadow(0 0 4px var(--t5)) drop-shadow(0 0 12px color-mix(in srgb, var(--t5) 60%, transparent)); }
+.badge-lg.tier-5 svg, .badge-lg.tier-4 svg { animation: glow 2.4s ease-in-out infinite alternate; }
+@keyframes glow { to { transform: scale(1.04); filter: drop-shadow(0 0 10px var(--tc)) drop-shadow(0 0 22px color-mix(in srgb, var(--tc) 50%, transparent)); } }
 .tier-text { font-weight: 800; color: var(--tc); }
 
 .bar { height: 6px; border-radius: 3px; background: var(--card-2); overflow: hidden; }
-.bar i { display: block; height: 100%; border-radius: 3px; background: var(--tc, var(--accent)); transition: width .4s; }
+.bar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, color-mix(in srgb, var(--tc, var(--accent)) 70%, transparent), var(--tc, var(--accent))); transition: width .4s; }
+.bar.thin { height: 4px; margin-top: 6px; max-width: 160px; }
+
+/* Rank ladder in the exercise sheet */
+.next-up { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding: 10px 12px; margin-bottom: 10px; border-radius: 12px;
+  background: color-mix(in srgb, var(--tc) 12%, var(--card-2)); border: 1px solid color-mix(in srgb, var(--tc) 35%, transparent); }
+.next-up > span:first-child { font-size: 13px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; }
+.next-up b { font-size: 18px; }
+.next-up .at { font-weight: 600; font-variant-numeric: tabular-nums; }
+.ladder { display: flex; flex-direction: column; gap: 4px; }
+.rung { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px; font-size: 15px; }
+.rung .nm { font-weight: 700; color: var(--tc); }
+.rung .need { margin-left: auto; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--text-2); }
+.rung .you { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; padding: 1px 6px; border-radius: 6px; background: var(--tc); color: #0b0b0f; }
+.rung.here { background: color-mix(in srgb, var(--tc) 16%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--tc) 60%, transparent); }
+.rung.here .need { color: var(--text); }
+.rung.done .need::after { content: ' ✓'; color: var(--ok); }
+.rung.locked { opacity: .65; }
+.rung.locked .badge svg { filter: grayscale(.7); }
+.bw-note b { color: var(--text); }
+
+/* Overall rank track */
+.track { position: relative; display: flex; gap: 3px; height: 8px; margin: 16px auto 8px; max-width: 300px; }
+.track i { flex: 1; border-radius: 4px; background: var(--tc); opacity: .85; }
+.track b { position: absolute; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: var(--text); border: 3px solid var(--bg); box-shadow: 0 0 0 2px var(--tc); }
 
 /* ---- Buttons and fields ---- */
 .btn {
@@ -164,6 +197,7 @@ main { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling
 .btn.primary { background: var(--accent); color: var(--accent-ink); }
 .btn.danger { background: var(--danger); color: #fff; }
 .btn.ghost { background: transparent; color: var(--accent); }
+.btn.primary-soft { background: color-mix(in srgb, var(--accent) 16%, var(--card-2)); color: var(--accent); }
 .btn.block { width: 100%; }
 .btn:active { filter: brightness(.9); transform: scale(.98); }
 .btn:disabled { opacity: .5; }
@@ -228,6 +262,15 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
 .form-grid .full { grid-column: 1 / -1; }
 .hint { font-size: 14px; color: var(--text-2); margin-top: 10px; }
+.max-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.max-row .bigmax { min-width: 0; }
+.max-meta { font-size: 14px; color: var(--text-2); margin-top: 4px; }
+.max-meta b { color: var(--text); font-variant-numeric: tabular-nums; }
+.max-form { margin-top: 6px; padding-top: 4px; border-top: 1px solid var(--line); }
+.today .lbl { margin-bottom: 6px; }
+.today-sets { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px 0 4px; border-radius: 18px; background: var(--card-2); font-weight: 650; font-size: 15px; font-variant-numeric: tabular-nums; }
+.pill i { font-style: normal; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--card); font-size: 12px; color: var(--text-2); }
 .hint b { color: var(--text); }
 .save-row { margin-top: 12px; }
 .note { font-size: 13px; color: var(--text-2); margin-top: 8px; }
@@ -278,8 +321,12 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 
 /* ---- Progress ---- */
 .progress { padding: 12px; }
-.overall { text-align: center; padding: 20px 16px; }
-.overall .badge-lg { margin: 0 auto 8px; }
+.overall { text-align: center; padding: 18px 16px 20px; background: radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--tc, transparent) 22%, var(--card)), var(--card)); }
+.overall .eyebrow { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-2); margin-bottom: 12px; }
+.overall .badge-lg { margin: 0 auto 22px; }
+.overall .bw { font-size: 13px; color: var(--text-2); margin-top: 10px; }
+.overall .bw a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.overall .bw.warn { color: var(--text); }
 .overall .tier-name { font-size: 28px; font-weight: 850; }
 .overall .score { color: var(--text-2); font-weight: 600; }
 .overall .bar { margin: 12px auto 6px; max-width: 280px; }

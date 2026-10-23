@@ -5,7 +5,7 @@ import { exercise, unit } from '../state.js';
 import { ICONS, toast, modal, confirmDialog, shareFile } from '../ui.js';
 import { esc, fmtShort, fmtNum, toDisplay, fromDisplay, today, addDays, uid } from '../util.js';
 
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.1.0';
 let page, hooks;
 
 export function initSettings(hookFns) {

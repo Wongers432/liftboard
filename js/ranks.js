@@ -1,7 +1,9 @@
-// Rank system: thresholds, estimated max, score and tier. Pure functions.
+// Rank system: thresholds, bodyweight scaling, estimated max, score, tier and division. Pure functions.
 // All numbers are approximate and meant to be tuned after real use.
 
 export const TIERS = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Champion'];
+// Every tier below Champion splits into three divisions: III → II → I.
+export const DIVS = ['III', 'II', 'I'];
 
 // Max ÷ bodyweight needed to reach Silver, Gold, Platinum, Diamond, Champion (men's).
 export const WEIGHT_STANDARDS = {
@@ -24,8 +26,13 @@ export const REP_STANDARDS = {
 // Women's standards = men's × this. Core standards are unchanged.
 export const WOMEN_FACTOR = { BP: 0.6, OHP: 0.6, ROW: 0.6, SQ: 0.75, DL: 0.75, PULLUP: 0.4, PUSHUP: 0.5, DIP: 0.5 };
 export const BASE_NAMES = { BP: 'Bench Press', SQ: 'Squat', DL: 'Deadlift', OHP: 'Overhead Press', ROW: 'Barbell Row' };
-// Used when no bodyweight has been entered.
+// The standards above are written for a lifter of this bodyweight; also used when none has been entered.
 export const REF_BW = { men: 80, women: 65 };
+// Strength grows slower than bodyweight (roughly with bodyweight^⅔), so a heavier lifter needs more
+// kg but a lower Max ÷ bodyweight for the same tier, and a lighter lifter the reverse.
+export const ALLOMETRIC = 2 / 3;
+// Rep standards where you lift your own body: more bodyweight makes each rep harder.
+export const BW_LOADED = ['PULLUP', 'PUSHUP', 'DIP'];
 
 export const isWeightKind = kind => kind === 'weight' || kind === 'perdb';
 
@@ -70,10 +77,52 @@ export function entryValue(ex, entry, bw) {
   return equivReps(entry.reps ?? 0, entry.added ?? 0, bw);
 }
 
-// The x that goes into score(): ratio to bodyweight for weight kinds.
-export function measure(ex, entry, bw) {
-  const v = entryValue(ex, entry, bw);
-  return isWeightKind(ex.kind) ? v / bw : v;
+const refBw = standards => REF_BW[standards] ?? 80;
+
+// Whether bodyweight changes the rank of this exercise (core holds and raises are not adjusted).
+export const isBwAdjusted = ex => isRanked(ex) && (isWeightKind(ex.kind) || BW_LOADED.includes(ex.base));
+
+// The kg that a ratio of 1.0 means at this bodyweight: the reference bodyweight scaled by bw^⅔.
+export function strengthBase(bw, standards = 'men') {
+  const ref = refBw(standards);
+  return ref * (bw / ref) ** ALLOMETRIC;
+}
+// How much harder each bodyweight rep is than for the reference lifter (1 at the reference).
+const repLoad = (bw, standards) => (bw / refBw(standards)) ** (1 - ALLOMETRIC);
+
+// The x that goes into score(), in the units of thresholds(): a reference-lifter ratio for weight
+// kinds, reference-lifter reps for pull-ups, push-ups and dips, raw reps or seconds for core.
+export function measure(ex, entry, bw, standards = 'men') {
+  if (isWeightKind(ex.kind)) return (entry.kg ?? 0) / strengthBase(bw, standards);
+  if (ex.kind === 'reps' && BW_LOADED.includes(ex.base) && bw > 0) {
+    const reps = entry.reps ?? 0;
+    if (!(reps > 0)) return 0;
+    const load = ((bw + (entry.added ?? 0)) / bw) * repLoad(bw, standards);
+    return Math.max(0, 30 * (load * (1 + reps / 30) - 1));
+  }
+  return entryValue(ex, entry, bw);
+}
+
+// Inverse of measure(): what x means for you, in kg, reps at bodyweight (no added weight) or seconds.
+export function fromMeasure(ex, x, bw, standards = 'men') {
+  if (isWeightKind(ex.kind)) return x * strengthBase(bw, standards);
+  if (ex.kind === 'reps' && BW_LOADED.includes(ex.base) && bw > 0) {
+    return Math.max(0, 30 * ((1 + x / 30) / repLoad(bw, standards) - 1));
+  }
+  return x;
+}
+
+// Inverse of score(): the x needed to reach score s.
+export function scoreTarget(s, t) {
+  if (s <= 1) return s * t[0];
+  if (s < 5) { const i = Math.floor(s); return t[i - 1] + (s - i) * (t[i] - t[i - 1]); }
+  return t[4] + (s - 5) * (t[4] - t[3]);
+}
+
+// What you need, in your own units at this bodyweight, for each tier from Silver to Champion.
+export function tierTargets(ex, standards, bw) {
+  const t = thresholds(ex, standards);
+  return t ? t.map(x => fromMeasure(ex, x, bw, standards)) : null;
 }
 
 // Percent of the way through the current tier toward the next (0–99, or 100 at the very top).
@@ -81,4 +130,20 @@ export function pctToNext(s) {
   if (s >= 6) return 100;
   const p = Math.round((s - Math.floor(s)) * 100);
   return Math.min(99, Math.max(0, p));
+}
+
+// Steps of a third of a tier: 0 = Bronze III … 14 = Diamond I, 15 = Champion.
+export const stepIndex = s => Math.min(15, Math.max(0, Math.floor(s * 3 + 1e-9)));
+export const stepName = i => (i >= 15 ? TIERS[5] : `${TIERS[Math.floor(i / 3)]} ${DIVS[i % 3]}`);
+
+// Tier, division and progress toward the next division for a score.
+export function rankInfo(s) {
+  const step = stepIndex(s);
+  const tierIdx = Math.min(5, Math.floor(step / 3));
+  if (step >= 15) {
+    return { tierIdx: 5, div: null, step, name: TIERS[5], nextScore: null, nextName: null, pct: Math.round(Math.min(1, s - 5) * 100) };
+  }
+  const nextScore = (step + 1) / 3;
+  const pct = Math.min(99, Math.max(0, Math.round((s * 3 - step) * 100)));
+  return { tierIdx, div: step % 3, step, name: stepName(step), nextScore, nextName: stepName(step + 1), pct };
 }

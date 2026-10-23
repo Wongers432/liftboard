@@ -3,7 +3,7 @@
 import * as store from '../store.js';
 import { GROUPS } from '../exercises.js';
 import { stats, unit, stepFor, exercise } from '../state.js';
-import { TIERS, isRanked, isWeightKind, entryValue, estMax } from '../ranks.js';
+import { TIERS, isRanked, isWeightKind, isBwAdjusted, entryValue, tierTargets } from '../ranks.js';
 import { maxSeries } from '../stats.js';
 import { maxChart, fmtValue } from '../charts.js';
 import { ICONS, badge, toast, modal, confirmDialog, confetti, rankCardBlob, shareFile, onLongPress, entryParts, entryText } from '../ui.js';
@@ -13,7 +13,8 @@ import { esc, today, fmtShort, fmtDay, toDisplay, fromDisplay, fmtNum, fmtSec } 
 let wrap, sheet, hooks;
 let exId = null;
 let form = {};
-let celebrate = null; // { max: {text, gain}, rankup: tierIdx }
+let celebrate = null; // { max: {text, gain}, rankup: { ...rankInfo, tierUp } }
+let maxOpen = false;
 let editingId = null;
 let flashId = null;
 
@@ -42,6 +43,7 @@ export function openSheet(id) {
   celebrate = null;
   editingId = null;
   flashId = null;
+  maxOpen = false;
   resetForm(ex);
   renderSheet();
   wrap.hidden = false;
@@ -174,38 +176,47 @@ export function renderSheet() {
   } else if (!s?.best) {
     rank = `<div class="grow"><div class="meta"><span><b>Unranked</b></span><span>Log a Max to get ranked</span></div><div class="bar"><i style="width:0"></i></div></div>`;
   } else {
-    const next = s.tierIdx < 5 ? `${s.pct}% to ${TIERS[s.tierIdx + 1]}` : 'Top tier';
-    rank = `${badge(s.tierIdx, 'md')}<div class="grow tier-${s.tierIdx}"><div class="meta"><span class="tier-text">${TIERS[s.tierIdx]}</span><span>${next}</span></div>
-      <div class="bar"><i style="width:${s.tierIdx < 5 ? s.pct : 100}%"></i></div></div>`;
+    const r = s.rank;
+    const next = r.nextName ? `${r.pct}% to ${r.nextName}` : 'Top tier';
+    rank = `${badge(r.tierIdx, 'md', r.div)}<div class="grow tier-${r.tierIdx}"><div class="meta"><span class="tier-text">${r.name}</span><span>${next}</span></div>
+      <div class="bar"><i style="width:${r.nextName ? r.pct : 100}%"></i></div></div>`;
   }
-  const bwNote = ranked && !st.hasBw ? `<p class="note"><a href="#" data-act="bodyweight">Set your bodyweight</a> for an accurate rank.</p>` : '';
-
-  // Stats strip
-  const maxP = entryParts(ex, s?.best, u);
-  let est = '—';
-  if (isWeightKind(ex.kind)) { if (s?.bestEst) est = `${fmtNum(toDisplay(s.bestEst, u), 1)}<small> ${u}</small>`; }
-  else if (s?.bestSet) { const p = entryParts(ex, s.bestSet, u); est = `${esc(p.num)}${p.unit ? `<small> ${esc(p.unit)}</small>` : ''}`; }
-  const strip = `<div class="stats3">
-    <div class="tile"><div class="k">Max</div><div class="v">${esc(maxP.num)}${maxP.unit ? `<small> ${esc(maxP.unit)}</small>` : ''}</div></div>
-    <div class="tile"><div class="k">${isWeightKind(ex.kind) ? 'Est. max (sets)' : 'Best set'}</div><div class="v">${est}</div></div>
-    <div class="tile"><div class="k">Times trained</div><div class="v">${s?.timesTrained ?? 0}</div></div>
-  </div>`;
 
   // Celebration
   let cel = '';
   if (celebrate?.max) cel += `<div class="celebrate" role="status"><h3>New Max!</h3><p>${esc(celebrate.max.text)}${celebrate.max.gain ? ` · ${esc(celebrate.max.gain)}` : ''}</p></div>`;
-  if (celebrate?.rankup != null) {
-    const t = celebrate.rankup;
-    cel += `<div class="celebrate rankup tier-${t}" role="status">${badge(t, 'md')}<div class="grow"><h3>Rank up: ${TIERS[t]}</h3><p>${esc(ex.name)}</p></div>
+  if (celebrate?.rankup) {
+    const r = celebrate.rankup;
+    cel += `<div class="celebrate rankup tier-${r.tierIdx}" role="status">${badge(r.tierIdx, 'md', r.div)}<div class="grow"><h3>${r.tierUp ? 'Rank up' : 'Promoted'}: ${r.name}</h3><p>${esc(ex.name)}</p></div>
       <button type="button" class="btn" data-act="share-rankup">${ICONS.share} Share</button></div>`;
   }
 
-  // Max card
-  const maxLabel = ex.kind === 'perdb' ? `Per dumbbell (${u})` : `Weight (${u})`;
-  let maxFields;
-  if (isWeightKind(ex.kind)) maxFields = `<div class="full">${stepper('maxKg', maxLabel, 'w', form.maxKg, u)}</div>`;
-  else if (ex.kind === 'time') maxFields = `<div class="full">${stepper('maxSec', 'Longest hold (seconds)', 's', form.maxSec, u)}</div>`;
-  else maxFields = `${stepper('maxReps', 'Max reps', 'n', form.maxReps, u)}${stepper('maxAdded', `Added (${u})`, 'w', form.maxAdded, u, { optional: true })}`;
+  // Sets card: first in the sheet, with today's sets so far.
+  let setFields;
+  if (isWeightKind(ex.kind)) setFields = `${stepper('setKg', ex.kind === 'perdb' ? `Per DB (${u})` : `Weight (${u})`, 'w', form.setKg, u)}${stepper('setReps', 'Reps', 'n', form.setReps, u)}`;
+  else if (ex.kind === 'time') setFields = `<div class="full">${stepper('setSec', 'Seconds', 's', form.setSec, u)}</div>`;
+  else setFields = `${stepper('setReps', 'Reps', 'n', form.setReps, u)}${stepper('setAdded', `Added (${u})`, 'w', form.setAdded, u, { optional: true })}`;
+  const todaySets = s ? s.sets.filter(e => e.date === st.today) : [];
+  let setsSoFar = '';
+  if (todaySets.length) {
+    setsSoFar = `<div class="today"><div class="lbl">Today · ${todaySets.length} ${todaySets.length === 1 ? 'set' : 'sets'}</div><div class="today-sets">${todaySets.map((e, i) =>
+      `<button type="button" class="pill" data-entry="${esc(e.id)}" aria-label="Edit set ${i + 1}: ${esc(entryText(ex, e, u))}"><i>${i + 1}</i>${esc(entryText(ex, e, u, true))}</button>`).join('')}</div></div>`;
+  } else if (s?.lastSet) {
+    setsSoFar = `<p class="hint">Last time: <b>${esc(entryText(ex, s.lastSet, u))}</b> on ${fmtShort(s.lastSet.date)}</p>`;
+  }
+  const setCard = `<form class="card" id="set-card" autocomplete="off">
+    <div class="card-h"><h3>Log a set</h3><span class="aside">Training log · doesn't change rank</span></div>
+    ${setsSoFar}
+    <div class="form-grid">${setFields}<div class="full">${dateField('setDate', form.setDate)}</div></div>
+    <div class="save-row"><button type="button" class="btn primary block" data-act="save-set">Save set${todaySets.length && form.setDate === st.today ? ` ${todaySets.length + 1}` : ''}</button></div>
+  </form>`;
+
+  // Max card: a compact summary; the form opens on demand.
+  const maxP = entryParts(ex, s?.best, u);
+  let est = '';
+  if (isWeightKind(ex.kind)) { if (s?.bestEst) est = `Est. from sets <b>${fmtNum(toDisplay(s.bestEst, u), 1)} ${u}</b>`; }
+  else if (s?.bestSet) est = `Best set <b>${esc(entryText(ex, s.bestSet, u))}</b>`;
+  const meta = [est, `Trained <b>${s?.timesTrained ?? 0}</b> ${s?.timesTrained === 1 ? 'day' : 'days'}`].filter(Boolean).join(' · ');
   let suggest = '';
   if (isWeightKind(ex.kind) && s?.bestEst && (!s.best || s.bestEst > s.best.kg + 0.01)) {
     const step = stepFor(u);
@@ -217,26 +228,24 @@ export function renderSheet() {
   const bestLine = s?.best
     ? `<div class="bigmax">${esc(maxP.num)}${maxP.unit ? ` <small>${esc(maxP.unit)}</small>` : ''} <span class="date">· ${fmtShort(s.best.date)}</span></div>`
     : `<div class="bigmax"><small>No Max yet</small></div>`;
-  const maxCard = `<form class="card" id="max-card" autocomplete="off">
-    <div class="card-h"><h3>${ICONS.crown.replace('<svg', '<svg style="display:inline;width:18px;height:18px;vertical-align:-2px;margin-right:4px"')}Max</h3><span class="aside">${ex.kind === 'time' ? 'Longest hold' : ex.kind === 'reps' ? 'Most reps in one set' : 'Heaviest single · sets your rank'}</span></div>
-    ${bestLine}
-    <div class="form-grid">${maxFields}<div class="full">${dateField('maxDate', form.maxDate)}</div></div>
-    ${suggest}
-    <div class="save-row"><button type="button" class="btn primary block" data-act="save-max">Save max</button></div>
-  </form>`;
+  let maxForm = '';
+  if (maxOpen) {
+    const maxLabel = ex.kind === 'perdb' ? `Per dumbbell (${u})` : `Weight (${u})`;
+    let maxFields;
+    if (isWeightKind(ex.kind)) maxFields = `<div class="full">${stepper('maxKg', maxLabel, 'w', form.maxKg, u)}</div>`;
+    else if (ex.kind === 'time') maxFields = `<div class="full">${stepper('maxSec', 'Longest hold (seconds)', 's', form.maxSec, u)}</div>`;
+    else maxFields = `${stepper('maxReps', 'Max reps', 'n', form.maxReps, u)}${stepper('maxAdded', `Added (${u})`, 'w', form.maxAdded, u, { optional: true })}`;
+    maxForm = `<form class="max-form" autocomplete="off"><div class="form-grid">${maxFields}<div class="full">${dateField('maxDate', form.maxDate)}</div></div>
+      <div class="save-row"><button type="button" class="btn primary block" data-act="save-max">Save max</button></div></form>`;
+  }
+  const maxCard = `<div class="card" id="max-card">
+    <div class="card-h"><h3>${ICONS.crown.replace('<svg', '<svg style="display:inline;width:18px;height:18px;vertical-align:-2px;margin-right:4px"')}Max</h3><span class="aside">${ex.kind === 'time' ? 'Longest hold' : ex.kind === 'reps' ? 'Most reps in one set' : 'Heaviest single'}${ranked ? ' · sets your rank' : ''}</span></div>
+    <div class="max-row">${bestLine}<button type="button" class="btn ${maxOpen ? '' : 'primary-soft'}" data-act="toggle-max" aria-expanded="${maxOpen}">${maxOpen ? 'Cancel' : s?.best ? 'New Max' : 'Log Max'}</button></div>
+    <p class="max-meta">${meta}</p>
+    ${suggest}${maxForm}
+  </div>`;
 
-  // Sets card
-  let setFields;
-  if (isWeightKind(ex.kind)) setFields = `${stepper('setKg', ex.kind === 'perdb' ? `Per DB (${u})` : `Weight (${u})`, 'w', form.setKg, u)}${stepper('setReps', 'Reps', 'n', form.setReps, u)}`;
-  else if (ex.kind === 'time') setFields = `<div class="full">${stepper('setSec', 'Seconds', 's', form.setSec, u)}</div>`;
-  else setFields = `${stepper('setReps', 'Reps', 'n', form.setReps, u)}${stepper('setAdded', `Added (${u})`, 'w', form.setAdded, u, { optional: true })}`;
-  const lastHint = s?.lastSet ? `<p class="hint">Last time: <b>${esc(entryText(ex, s.lastSet, u))}</b> on ${fmtShort(s.lastSet.date)}</p>` : '';
-  const setCard = `<form class="card" id="set-card" autocomplete="off">
-    <div class="card-h"><h3>Sets</h3><span class="aside">Training log · never changes rank</span></div>
-    <div class="form-grid">${setFields}<div class="full">${dateField('setDate', form.setDate)}</div></div>
-    ${lastHint}
-    <div class="save-row"><button type="button" class="btn primary block" data-act="save-set">Save set</button></div>
-  </form>`;
+  const rankCard = ranked ? rankCardHTML(ex, s, st, u) : '';
 
   // Mini chart
   const hasChart = s && (s.maxes.length || s.sets.length);
@@ -283,9 +292,8 @@ export function renderSheet() {
         <button type="button" class="icon-btn" data-act="close" aria-label="Close">${ICONS.x}</button>
       </div>
       <div class="rankline">${rank}</div>
-      ${bwNote}
     </div>
-    <div class="sheet-body">${strip}${cel}${maxCard}${setCard}${mini}${hist}${footer}</div>`;
+    <div class="sheet-body">${cel}${setCard}${maxCard}${rankCard}${mini}${hist}${footer}</div>`;
 
   const body = sheet.querySelector('.sheet-body');
   body.scrollTop = bodyScroll;
@@ -297,6 +305,62 @@ export function renderSheet() {
     sheet.querySelector(`[data-entry="${flashId}"]`)?.classList.add('flash');
     flashId = null;
   }
+}
+
+// A target in your own units, rounded up so that hitting the number shown is enough.
+function fmtTarget(ex, v, u) {
+  if (isWeightKind(ex.kind)) {
+    const step = stepFor(u);
+    return `${fmtNum(Math.ceil(toDisplay(v, u) / step - 1e-6) * step)} ${u}`;
+  }
+  if (ex.kind === 'time') return fmtSec(Math.ceil(v - 1e-6));
+  const r = Math.max(1, Math.ceil(v - 1e-6));
+  return `${r} ${r === 1 ? 'rep' : 'reps'}`;
+}
+
+// The rank ladder: every tier with what it takes at your bodyweight, and the next step.
+function rankCardHTML(ex, s, st, u) {
+  const targets = tierTargets(ex, st.standards, st.bwNow);
+  const cur = s?.rank?.tierIdx ?? -1;
+  let rungs = '';
+  for (let i = 5; i >= 0; i--) {
+    const state = i < cur ? 'done' : i === cur ? 'here' : 'locked';
+    const need = i === 0 ? 'Any Max' : fmtTarget(ex, targets[i - 1], u);
+    const name = i === cur && s.rank.div != null ? s.rank.name : TIERS[i];
+    rungs += `<div class="rung tier-${i} ${state}">${badge(i)}<span class="nm">${name}</span>${i === cur ? '<span class="you">You</span>' : ''}<span class="need">${need}</span></div>`;
+  }
+  let next = '';
+  if (s?.next) {
+    let gap = '';
+    const best = s.bestValue;
+    const shownTarget = fmtTarget(ex, s.next.value, u);
+    if (isWeightKind(ex.kind)) {
+      const step = stepFor(u);
+      const d = Math.ceil(toDisplay(s.next.value, u) / step - 1e-6) * step - toDisplay(best, u);
+      if (d > 0) gap = ` · ${fmtNum(d)} ${u} to go`;
+    } else if (ex.kind === 'time') {
+      const d = Math.ceil(s.next.value - 1e-6) - best;
+      if (d > 0) gap = ` · ${fmtSec(d)} to go`;
+    } else if (!s.best.added) {
+      const d = Math.max(1, Math.ceil(s.next.value - 1e-6)) - s.best.reps;
+      if (d > 0) gap = ` · ${d} more ${d === 1 ? 'rep' : 'reps'}`;
+    }
+    next = `<div class="next-up tier-${Math.min(5, Math.floor((s.rank.step + 1) / 3))}"><span>Next</span><b class="tier-text">${s.next.name}</b><span class="at">at ${shownTarget}${gap}</span></div>`;
+  } else if (s?.rank) {
+    next = `<div class="next-up tier-5"><span>Top tier reached</span><b class="tier-text">Champion</b></div>`;
+  }
+  const bwKg = fmtNum(toDisplay(st.bwNow, u), 1);
+  let bwLine;
+  if (!isBwAdjusted(ex)) bwLine = `Core standards are the same at every bodyweight.`;
+  else if (st.hasBw) bwLine = `Targets for your bodyweight of <b>${bwKg} ${u}</b>. <a href="#" data-act="bodyweight">Update</a>`;
+  else bwLine = `<b>Using a default ${bwKg} ${u}.</b> <a href="#" data-act="bodyweight">Set your bodyweight</a> to get targets that fit you.`;
+  const unitNote = ex.kind === 'reps' && isBwAdjusted(ex) ? ' Reps are at bodyweight; added weight counts extra.' : '';
+  return `<div class="card rank-card">
+    <div class="card-h"><h3>Rank</h3><span class="aside">${ex.kind === 'perdb' ? 'Per dumbbell' : ''}</span></div>
+    ${next}
+    <div class="ladder">${rungs}</div>
+    <p class="note bw-note">${bwLine}${unitNote}</p>
+  </div>`;
 }
 
 function histRowHTML(ex, e, u, s) {
@@ -385,7 +449,8 @@ async function saveMax() {
     await askBodyweight();
   }
   const id = exId;
-  const oldTier = stats().byEx.get(id)?.tierIdx ?? -1;
+  const old = stats().byEx.get(id);
+  const oldTier = old?.tierIdx ?? -1, oldStep = old?.rank?.step ?? -1;
   const entry = store.addEntry({ type: 'max', ex: id, ...r });
   st = stats();
   const s2 = st.byEx.get(id);
@@ -399,8 +464,9 @@ async function saveMax() {
   } else {
     toast(`Max saved. Your best is still ${fmtValue(ex, s2.bestValue, u)}.`);
   }
-  if (s2.tierIdx != null && s2.tierIdx > oldTier) celebrate = { ...(celebrate || {}), rankup: s2.tierIdx };
+  if (s2.rank && s2.rank.step > oldStep) celebrate = { ...(celebrate || {}), rankup: { ...s2.rank, tierUp: s2.tierIdx > oldTier } };
   flashId = entry.id;
+  maxOpen = false;
   if (exId === id) {
     renderSheet();
     sheet.querySelector('.sheet-body').scrollTo({ top: 0, behavior: 'smooth' });
@@ -461,7 +527,15 @@ async function onClick(e) {
   const unitBtn = e.target.closest('[data-unit]');
   if (unitBtn) { if (unitBtn.dataset.unit !== unit()) store.setSetting('unit', unitBtn.dataset.unit); return; }
   const entryBtn = e.target.closest('[data-entry]');
-  if (entryBtn) { editingId = entryBtn.dataset.entry; renderSheet(); sheet.querySelector('.hist-edit input')?.focus({ preventScroll: true }); return; }
+  if (entryBtn) {
+    editingId = entryBtn.dataset.entry;
+    renderSheet();
+    const box = sheet.querySelector('.hist-edit');
+    // A set tapped in "Today" is edited down in History, so bring it into view.
+    if (entryBtn.classList.contains('pill')) box?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    box?.querySelector('input')?.focus({ preventScroll: true });
+    return;
+  }
   const a = e.target.closest('[data-act]');
   if (!a) return;
   e.preventDefault();
@@ -470,6 +544,12 @@ async function onClick(e) {
     case 'close': return closeSheet();
     case 'save-max': return saveMax();
     case 'save-set': return saveSet();
+    case 'toggle-max': {
+      maxOpen = !maxOpen;
+      renderSheet();
+      if (maxOpen) sheet.querySelector('.max-form')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      return;
+    }
     case 'edit-cancel': editingId = null; return renderSheet();
     case 'edit-save': return saveEdit(a.closest('.hist-edit'));
     case 'edit-delete': return deleteEntryWithUndo(a.closest('.hist-edit').dataset.editing);
@@ -499,11 +579,11 @@ async function onClick(e) {
       return toast(`Deleted ${ex.name}`, { action: 'Undo', duration: 5000, onAction: () => store.restoreCustom(snap) });
     }
     case 'share-rankup': {
-      const t = celebrate?.rankup;
-      if (t == null) return;
+      const r = celebrate?.rankup;
+      if (!r) return;
       const s = stats().byEx.get(exId);
-      const blob = await rankCardBlob({ heading: 'Rank up', tierIdx: t, line1: ex.name, line2: `Max ${fmtValue(ex, s.bestValue, unit())} · ${fmtShort(s.best.date)}` });
-      return shareFile(new File([blob], `liftboard-${ex.id}-${TIERS[t].toLowerCase()}.png`, { type: 'image/png' }), `${TIERS[t]} rank on ${ex.name}`);
+      const blob = await rankCardBlob({ heading: r.tierUp ? 'Rank up' : 'Promoted', tierIdx: r.tierIdx, name: r.name, line1: ex.name, line2: `Max ${fmtValue(ex, s.bestValue, unit())} · ${fmtShort(s.best.date)}` });
+      return shareFile(new File([blob], `liftboard-${ex.id}-${r.name.toLowerCase().replace(/ /g, '-')}.png`, { type: 'image/png' }), `${r.name} on ${ex.name}`);
     }
   }
 }

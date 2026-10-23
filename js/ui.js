@@ -1,6 +1,6 @@
 // Shared UI pieces: icons, rank badge, toast, modal, confetti, share image, long-press.
 
-import { TIERS, isWeightKind } from './ranks.js';
+import { TIERS, DIVS, isWeightKind } from './ranks.js';
 import { esc, toDisplay, fmtNum, fmtSec } from './util.js';
 
 const svg = (d, extra = '') =>
@@ -26,13 +26,53 @@ export const ICONS = {
   trash: svg('<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>'),
 };
 
-// ---- Rank badge: a small shield with the tier's initial ----
-export function badge(tierIdx, size = 'sm') {
+// ---- Rank badge: a gradient emblem whose shape and mark change with the tier ----
+// Light, mid and dark colour per tier (used by the SVG gradients and the share image).
+export const TIER_COLORS = [
+  ['#f3c08f', '#cd7f32', '#6e4119'],
+  ['#ffffff', '#b8c2cc', '#5f6b78'],
+  ['#fff3b0', '#f5c542', '#9a6c00'],
+  ['#c4fff7', '#2ec4b6', '#0f6b63'],
+  ['#cfe0ff', '#4d8dff', '#1a3f9c'],
+  ['#f5dcff', '#a855f7', '#4c1590'],
+];
+// viewBox 0 0 48 56. Shield for Bronze–Gold, hex for Platinum, gem for Diamond, star for Champion.
+const SHIELD = 'M24 2 44 9v17c0 14-9 24-20 28C13 50 4 40 4 26V9z';
+export const BADGE_SHAPES = [SHIELD, SHIELD, SHIELD,
+  'M24 2 44 13v30L24 54 4 43V13z',
+  'M13 5h22l11 14-22 35L2 19z',
+  'M24 1l6.5 10.5L42 7l-2.5 12.5L47 28l-7.5 8.5L42 49l-11.5-4.5L24 55l-6.5-10.5L6 49l2.5-12.5L1 28l7.5-8.5L6 7l11.5 4.5z'];
+// The mark inside: 1–3 chevrons, a star, gem facets, a crown.
+const chev = y => `M14 ${y + 7}l10-6 10 6`;
+export const BADGE_MARKS = [
+  { stroke: chev(22) },
+  { stroke: `${chev(17)}${chev(25)}` },
+  { stroke: `${chev(13)}${chev(21)}${chev(29)}` },
+  { fill: 'M24 15l3.2 6.6 7.3 1-5.3 5.1 1.3 7.2-6.5-3.4-6.5 3.4 1.3-7.2-5.3-5.1 7.3-1z' },
+  { stroke: 'M13 5l6 14 5-14 5 14 6-14M2 19h44M19 19l5 35 5-35' },
+  { fill: 'M14 34V21l5.5 5L24 17l4.5 9 5.5-5v13z' },
+];
+let defsAdded = false;
+function badgeDefs() {
+  if (defsAdded || typeof document === 'undefined') return;
+  defsAdded = true;
+  const stops = TIER_COLORS.map(([a, b, c], i) => `<linearGradient id="lb-g${i}" x1="0" y1="0" x2=".35" y2="1"><stop offset="0" stop-color="${a}"/><stop offset=".45" stop-color="${b}"/><stop offset="1" stop-color="${c}"/></linearGradient>`).join('');
+  document.body.insertAdjacentHTML('afterbegin', `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>${stops}</defs></svg>`);
+}
+
+// div: 0 (III), 1 (II), 2 (I) or null; shown as pips under md and lg badges.
+export function badge(tierIdx, size = 'sm', div = null) {
   if (tierIdx == null) return '';
+  badgeDefs();
   const t = TIERS[tierIdx];
-  return `<span class="badge badge-${size} tier-${tierIdx}" title="${t}" aria-label="${t}">
-    <svg viewBox="0 0 24 28" aria-hidden="true"><path d="M12 1 2 5v8c0 6.5 4.3 11.6 10 14 5.7-2.4 10-7.5 10-14V5z"/></svg>
-    <b>${t[0]}</b></span>`;
+  const label = div != null && tierIdx < 5 ? `${t} ${DIVS[div]}` : t;
+  const m = BADGE_MARKS[tierIdx];
+  const mark = m.fill ? `<path class="mk" d="${m.fill}"/>` : `<path class="mk-s" d="${m.stroke}"/>`;
+  const pips = size !== 'sm' && div != null && tierIdx < 5
+    ? `<span class="pips">${[0, 1, 2].map(i => `<i class="${i <= div ? 'on' : ''}"></i>`).join('')}</span>` : '';
+  return `<span class="badge badge-${size} tier-${tierIdx}" title="${label}" aria-label="${label}">
+    <svg viewBox="0 0 48 56" aria-hidden="true"><path class="bd" d="${BADGE_SHAPES[tierIdx]}" fill="url(#lb-g${tierIdx})"/>
+      <path class="hl" d="${BADGE_SHAPES[tierIdx]}"/>${mark}</svg>${pips}</span>`;
 }
 
 // ---- Toast with optional action (used for Undo) ----
@@ -109,32 +149,39 @@ export function confetti() {
 }
 
 // ---- Share: a 1080 × 1350 rank card image through the share sheet ----
-const TIER_HEX = ['#cd7f32', '#b8c2cc', '#f5c542', '#2ec4b6', '#4d8dff', '#a855f7'];
-export function rankCardBlob({ heading, tierIdx, line1, line2 }) {
+// name: the full rank, e.g. "Gold II" (defaults to the tier).
+export function rankCardBlob({ heading, tierIdx, name, line1, line2 }) {
   const c = document.createElement('canvas');
   c.width = 1080; c.height = 1350;
   const g = c.getContext('2d');
+  const [light, col, dark] = TIER_COLORS[tierIdx] ?? ['#ccc', '#888', '#444'];
   const grad = g.createLinearGradient(0, 0, 0, 1350);
   grad.addColorStop(0, '#16161d'); grad.addColorStop(1, '#0b0b0f');
   g.fillStyle = grad; g.fillRect(0, 0, 1080, 1350);
-  const col = TIER_HEX[tierIdx] ?? '#888';
+  const glow = g.createRadialGradient(540, 560, 40, 540, 560, 520);
+  glow.addColorStop(0, col + '55'); glow.addColorStop(1, col + '00');
+  g.fillStyle = glow; g.fillRect(0, 0, 1080, 1350);
   const font = (w, s) => `${w} ${s}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
   g.textAlign = 'center';
   g.fillStyle = '#9a9aa5'; g.font = font(600, 44);
   g.fillText(heading.toUpperCase(), 540, 170);
-  // Shield
+  // Emblem, drawn from the same paths as the on-screen badge.
   g.save();
-  g.translate(540, 560);
-  g.scale(14, 14);
-  g.translate(-12, -14);
-  if (tierIdx === 5) { g.shadowColor = col; g.shadowBlur = 4; }
-  g.fillStyle = col;
-  g.fill(new Path2D('M12 1 2 5v8c0 6.5 4.3 11.6 10 14 5.7-2.4 10-7.5 10-14V5z'));
+  g.translate(540 - 24 * 9, 560 - 28 * 9);
+  g.scale(9, 9);
+  const fill = g.createLinearGradient(0, 0, 17, 56);
+  fill.addColorStop(0, light); fill.addColorStop(0.45, col); fill.addColorStop(1, dark);
+  g.shadowColor = col; g.shadowBlur = tierIdx >= 4 ? 6 : 2;
+  g.fillStyle = fill;
+  g.fill(new Path2D(BADGE_SHAPES[tierIdx]));
+  g.shadowBlur = 0;
+  const m = BADGE_MARKS[tierIdx];
+  g.fillStyle = g.strokeStyle = 'rgba(11,11,15,.55)';
+  g.lineWidth = 3; g.lineJoin = g.lineCap = 'round';
+  if (m.fill) g.fill(new Path2D(m.fill)); else g.stroke(new Path2D(m.stroke));
   g.restore();
-  g.fillStyle = '#0b0b0f'; g.font = font(800, 200);
-  g.fillText(TIERS[tierIdx]?.[0] ?? '?', 540, 630);
   g.fillStyle = col; g.font = font(800, 110);
-  g.fillText(TIERS[tierIdx] ?? 'Unranked', 540, 920);
+  g.fillText(name || TIERS[tierIdx] || 'Unranked', 540, 920);
   g.fillStyle = '#f2f2f5'; g.font = font(600, 56);
   g.fillText(line1 || '', 540, 1010);
   g.fillStyle = '#9a9aa5'; g.font = font(500, 44);
