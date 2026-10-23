@@ -15,7 +15,7 @@
   <p id="summary">Running…</p>
   <ul id="out"></ul>
   <script type="module">
-    import { score, tierOf, thresholds, estMax, equivReps, pctToNext, isRanked, entryValue } from './js/ranks.js';
+    import { isWeightKind, score, tierOf, thresholds, estMax, equivReps, pctToNext, isRanked, entryValue, measure, fromMeasure, tierTargets, scoreTarget, rankInfo, strengthBase, isBwAdjusted } from './js/ranks.js';
     import { computeAll, streakWeeks, volumeOf, bodyweightAt, heatmap, weeklyVolume, newMaxesThisMonth, maxSeries } from './js/stats.js';
     import { EXERCISES, GROUPS } from './js/exercises.js';
     import { toDisplay, fromDisplay, weekStart, addDays, dayNum, fmtSec } from './js/util.js';
@@ -61,6 +61,35 @@
     t("women's pull-up = × 0.4", near(thresholds(ex('pull-up'), 'women')[0], 2));
     t("women's plank unchanged", thresholds(ex('plank'), 'women')[0] === 60);
     t('chin-up = pull-up × 1.1', near(thresholds(ex('chin-up'))[1], 11));
+
+    // Bodyweight scaling
+    t('reference bodyweight: ratio unchanged', near(measure(ex('bench-press'), { kg: 120 }, 80), 1.5));
+    t('Gold bench at 80 kg is 80 kg', near(tierTargets(ex('bench-press'), 'men', 80)[1], 80));
+    const g60 = tierTargets(ex('bench-press'), 'men', 60)[1], g100 = tierTargets(ex('bench-press'), 'men', 100)[1];
+    t('Gold bench at 60 kg ≈ 66 kg (1.10 × bw)', near(g60, 66.04, 0.05), g60);
+    t('Gold bench at 100 kg ≈ 92.8 kg (0.93 × bw)', near(g100, 92.83, 0.05), g100);
+    t('heavier lifter needs more kg but a lower ratio', g100 > g60 && g100 / 100 < g60 / 60);
+    t('same 100 kg bench ranks higher at 70 kg than at 95 kg', score(measure(ex('bench-press'), { kg: 100 }, 70), BP) > score(measure(ex('bench-press'), { kg: 100 }, 95), BP));
+    t("women's reference is 65 kg", near(strengthBase(65, 'women'), 65));
+    const PU = thresholds(ex('pull-up'));
+    t('10 pull-ups at 80 kg = 10', near(measure(ex('pull-up'), { reps: 10 }, 80), 10));
+    t('10 pull-ups rank higher at 100 kg than at 60 kg', measure(ex('pull-up'), { reps: 10 }, 100) > measure(ex('pull-up'), { reps: 10 }, 60));
+    t('added weight still counts on pull-ups', measure(ex('pull-up'), { reps: 10, added: 10 }, 80) > 10);
+    t('plank ignores bodyweight', measure(ex('plank'), { sec: 90 }, 120) === 90 && !isBwAdjusted(ex('plank')) && isBwAdjusted(ex('dip')));
+    for (const [id, bwt] of [['bench-press', 63], ['dumbbell-curl', 104], ['pull-up', 58], ['push-up', 112], ['dip', 91]]) {
+      const e = ex(id), tt = thresholds(e);
+      const back = measure(e, isWeightKind(e.kind) ? { kg: fromMeasure(e, tt[2], bwt) } : { reps: fromMeasure(e, tt[2], bwt) }, bwt);
+      t(`fromMeasure inverts measure (${id} at ${bwt} kg)`, near(back, tt[2], 1e-6), back);
+    }
+    t('scoreTarget inverts score', [0.5, 1, 2.34, 4, 4.99, 5.5].every(x => near(score(scoreTarget(x, BP), BP), x)));
+
+    // Divisions
+    t('2.94 is Gold I', rankInfo(2.94).name === 'Gold I' && rankInfo(2.94).nextName === 'Platinum III');
+    t('2.0 is Gold III', rankInfo(2).name === 'Gold III' && rankInfo(2).div === 0);
+    t('exactly a third in is Gold II', rankInfo(2 + 1 / 3).name === 'Gold II');
+    t('division progress: 2.5 is 50% to Gold I', rankInfo(2.5).pct === 50, rankInfo(2.5).pct);
+    t('Champion has no division', rankInfo(5.2).name === 'Champion' && rankInfo(5.2).nextName === null);
+    t('Bronze III at 0', rankInfo(0).name === 'Bronze III');
 
     // Estimates
     t('estMax 100×5 = 116.67', near(estMax(100, 5), 116.6666667, 1e-4));
@@ -114,6 +143,8 @@
     const b = st.byEx.get('bench-press');
     t('best Max is best-ever, not latest', b.best.id === 'a' && b.bestValue === 117.5);
     t('bench is Gold 94%', b.tierIdx === 2 && b.pct === 94, `${b.tierIdx} ${b.pct}`);
+    t('bench is Gold I, next Platinum III at 120 kg', b.rank.name === 'Gold I' && b.next.name === 'Platinum III' && near(b.next.value, 120), `${b.rank.name} ${b.next?.value}`);
+    t('overall has a division', /^(Bronze|Silver|Gold|Platinum|Diamond) (I|II|III)$|^Champion$/.test(st.overall.rank.name), st.overall.rank.name);
     t('lower later Max does not create a PR', b.prs.length === 1);
     t('sets with no Max: no rank', st.byEx.get('squat').tierIdx === null && st.byEx.get('squat').bestSet.kg === 120);
     t('squat estimated max from sets', near(st.byEx.get('squat').bestEst, 140));
@@ -135,6 +166,7 @@
     t('heavier bodyweight lowers current score', b2.score < b.score);
     t('…but earned tier stays Gold', b2.tierIdx === 2, b2.tierIdx);
     t('…and progress bar moves', b2.pct < 94, b2.pct);
+    t('…next target goes up with bodyweight', b2.next.value > b.next.value, b2.next?.value);
     doc.bodyweight.pop();
 
     // Deleting the best Max recalculates

@@ -3,7 +3,7 @@
 import * as store from '../store.js';
 import { GROUPS } from '../exercises.js';
 import { stats, unit } from '../state.js';
-import { TIERS, isWeightKind, thresholds } from '../ranks.js';
+import { TIERS, isWeightKind, tierTargets } from '../ranks.js';
 import { streakWeeks, newMaxesThisMonth, weeklyVolume, heatmap, maxSeries } from '../stats.js';
 import { maxChart, volumeChart, radarChart, heatmapSVG, TIER_HEX } from '../charts.js';
 import { ICONS, badge, rankCardBlob, shareFile, entryText } from '../ui.js';
@@ -49,23 +49,30 @@ export function renderProgress() {
 
   // 1. Overall rank
   const o = st.overall;
+  const track = pos => `<div class="track" aria-hidden="true">${TIERS.map((_, i) => `<i class="tier-${i}"></i>`).join('')}${pos != null ? `<b style="left:${Math.min(100, (pos / 6) * 100)}%"></b>` : ''}</div>`;
+  const bwLine = st.hasBw
+    ? `<p class="bw">Ranked for ${fmtNum(toDisplay(st.bwNow, u), 1)} ${u} bodyweight · <a href="#" data-act="bodyweight">Update</a></p>`
+    : `<p class="bw warn">Using a default ${fmtNum(toDisplay(st.bwNow, u))} ${u} bodyweight. <a href="#" data-act="bodyweight">Set yours</a> for a rank that fits you.</p>`;
   let overall;
   if (o.ranked) {
-    const next = o.tierIdx < 5 ? `${o.pct}% to ${TIERS[o.tierIdx + 1]}` : 'Top tier';
-    overall = `<div class="card overall tier-${o.tierIdx}">${badge(o.tierIdx, 'lg')}
-      <div class="tier-name tier-text">${TIERS[o.tierIdx]}</div>
-      <div class="score">${TIERS[o.tierIdx]} · ${o.display.toFixed(2)}</div>
-      <div class="bar"><i style="width:${o.tierIdx < 5 ? o.pct : 100}%"></i></div>
+    const r = o.rank;
+    const next = r.nextName ? `<b>${r.pct}%</b> to ${r.nextName}` : 'Top tier';
+    overall = `<div class="card overall tier-${r.tierIdx}">
+      <div class="eyebrow">Overall rank</div>
+      ${badge(r.tierIdx, 'lg', r.div)}
+      <div class="tier-name tier-text">${r.name}</div>
+      <div class="score">Score ${o.display.toFixed(2)} of 6 · ${o.groupsRanked} muscle groups</div>
+      ${track(o.display)}
       <div class="to-next">${next}</div>
+      ${bwLine}
       <button type="button" class="btn" data-act="share-overall">${ICONS.share} Share</button>
     </div>`;
   } else {
-    overall = `<div class="card overall"><div class="tier-name" style="color:var(--text-2)">Unranked</div>
+    overall = `<div class="card overall"><div class="eyebrow">Overall rank</div><div class="tier-name" style="color:var(--text-2)">Unranked</div>
       <p class="score" style="margin-top:6px">Log a Max in 3 muscle groups to get ranked.</p>
       <div class="bar"><i style="width:${(o.groupsRanked / 3) * 100}%"></i></div>
-      <div class="to-next">${o.groupsRanked} of 3 groups</div></div>`;
+      <div class="to-next">${o.groupsRanked} of 3 groups</div>${bwLine}</div>`;
   }
-  const bwNote = !st.hasBw ? `<p class="note" style="margin:-4px 4px 12px">Ranks assume ${fmtNum(toDisplay(st.bwNow, u))} ${u}. <a href="#" data-act="bodyweight">Set your bodyweight</a> for an accurate rank.</p>` : '';
 
   // 2. Stat tiles
   const tiles = `<div class="tiles4">
@@ -97,11 +104,12 @@ export function renderProgress() {
 
   // 8. Exercise ranks
   const ranked = [...st.byEx.values()].filter(s => s.tierIdx != null).sort((a, b) => b.display - a.display);
-  const rankList = ranked.map(s => `<button type="button" class="li" data-ex="${esc(s.ex.id)}">${badge(s.tierIdx)}<div class="grow"><div class="t">${esc(s.ex.name)}</div><div class="s">${esc(entryText(s.ex, s.best, u))}</div></div>
-    <div class="r tier-${s.tierIdx}"><span class="tier-text">${TIERS[s.tierIdx]}</span><small>${s.display.toFixed(2)}</small></div></button>`).join('');
+  const rankList = ranked.map(s => `<button type="button" class="li" data-ex="${esc(s.ex.id)}">${badge(s.tierIdx)}<div class="grow"><div class="t">${esc(s.ex.name)}</div><div class="s">${esc(entryText(s.ex, s.best, u))}${s.next ? ` · next ${s.next.name}` : ''}</div>
+    <div class="bar thin tier-${s.tierIdx}"><i style="width:${s.next ? s.rank.pct : 100}%"></i></div></div>
+    <div class="r tier-${s.tierIdx}"><span class="tier-text">${s.rank.name}</span><small>${s.display.toFixed(2)}</small></div></button>`).join('');
   const ranks = `<div class="card"><div class="card-h"><h3>Exercise ranks</h3><span class="aside">${ranked.length} ranked</span></div>${rankList ? `<div class="list">${rankList}</div>` : '<p class="note">Log a Max on any exercise to rank it.</p>'}</div>`;
 
-  root.innerHTML = `<div class="progress">${overall}${bwNote}${tiles}${radar}${maxCard}${vol}${cal}${records}${ranks}</div>`;
+  root.innerHTML = `<div class="progress">${overall}${tiles}${radar}${maxCard}${vol}${cal}${records}${ranks}</div>`;
 
   radarChart(root.querySelector('#radar'), { groups: st.groups });
   volumeChart(root.querySelector('#vol'), { ...weeklyVolume(d, st.lib, st.today), unit: u });
@@ -123,13 +131,10 @@ function renderMaxCard() {
   if (!s) return;
   // Next two tier thresholds as bands (in kg for weight kinds, reps/seconds otherwise).
   const bands = [];
-  const t = thresholds(s.ex, st.standards);
+  const t = tierTargets(s.ex, st.standards, st.bwNow);
   if (t) {
     const start = s.tierIdx ?? 0;
-    for (let k = start; k < start + 2 && k < 5; k++) {
-      const y = isWeightKind(s.ex.kind) ? t[k] * st.bwNow : t[k];
-      bands.push({ y, label: TIERS[k + 1], color: TIER_HEX[k + 1] });
-    }
+    for (let k = start; k < start + 2 && k < 5; k++) bands.push({ y: t[k], label: TIERS[k + 1], color: TIER_HEX[k + 1] });
   }
   maxChart(box.querySelector('#max-chart'), { s, series: maxSeries(s, st.bwNow), unit: u, bands, today: st.today });
 }
@@ -144,7 +149,7 @@ async function onClick(e) {
   else if (a.dataset.act === 'bodyweight') hooks.openSettings('bodyweight');
   else if (a.dataset.act === 'share-overall') {
     const o = stats().overall;
-    const blob = await rankCardBlob({ heading: 'Overall rank', tierIdx: o.tierIdx, line1: `${TIERS[o.tierIdx]} · ${o.display.toFixed(2)}`, line2: `${o.groupsRanked} muscle groups ranked · ${fmtShort(today())}` });
-    shareFile(new File([blob], `liftboard-rank-${TIERS[o.tierIdx].toLowerCase()}.png`, { type: 'image/png' }), `My Liftboard rank: ${TIERS[o.tierIdx]}`);
+    const blob = await rankCardBlob({ heading: 'Overall rank', tierIdx: o.tierIdx, name: o.rank.name, line1: `Score ${o.display.toFixed(2)}`, line2: `${o.groupsRanked} muscle groups ranked · ${fmtShort(today())}` });
+    shareFile(new File([blob], `liftboard-rank-${o.rank.name.toLowerCase().replace(/ /g, '-')}.png`, { type: 'image/png' }), `My Liftboard rank: ${o.rank.name}`);
   }
 }
