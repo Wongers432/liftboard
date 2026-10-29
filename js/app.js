@@ -7,13 +7,14 @@ import { fromDisplay } from './util.js';
 import { initLifts, renderLifts } from './views/lifts.js';
 import { initSheet, openSheet, closeSheet, renderSheet, openExerciseId } from './views/sheet.js';
 import { initProgress, renderProgress, pickExercise } from './views/progress.js';
+import { initPlans, renderPlans } from './views/plans.js';
 import { initSettings, openSettings, renderSettings, settingsOpen, closeSettings } from './views/settings.js';
 
 const main = document.getElementById('main');
-const views = { lifts: document.getElementById('view-lifts'), progress: document.getElementById('view-progress') };
+const views = { lifts: document.getElementById('view-lifts'), progress: document.getElementById('view-progress'), plans: document.getElementById('view-plans') };
 let tab = 'lifts';
 let progressDirty = true;
-const scrollPos = { lifts: 0, progress: 0 };
+const scrollPos = { lifts: 0, progress: 0, plans: 0 };
 
 // ---- Theme ----
 function applyTheme() {
@@ -126,11 +127,15 @@ function start() {
   initLifts(views.lifts, hooks);
   initSheet(hooks);
   initProgress(views.progress, hooks);
+  initPlans(views.plans);
   initSettings(hooks);
   renderLifts();
+  renderPlans();
 
   store.on((type, detail) => {
     if (type === 'error') { toast(detail, { duration: 6000 }); return; }
+    renderPlans();
+    if (type === 'plans') return;
     if (type === 'import' || type === 'reset') { closeSheet(); }
     applyTheme();
     renderLifts();
@@ -151,6 +156,7 @@ function start() {
     if (document.visibilityState !== 'visible' || new Date().toDateString() === day) return;
     day = new Date().toDateString();
     renderLifts();
+    renderPlans();
     progressDirty = true;
     if (tab === 'progress') { renderProgress(); progressDirty = false; }
     if (openExerciseId()) openSheet(openExerciseId());

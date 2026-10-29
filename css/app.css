@@ -414,3 +414,73 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; }
   background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 15px;
   padding: 0 18px; min-height: 44px; border-radius: 22px; box-shadow: var(--shadow); white-space: nowrap;
 }
+
+/* ---- Plans: per-person workout plans ---- */
+.plans-top { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 10px 16px 8px; border-bottom: 1px solid var(--line); }
+.plans-top .chips { margin-top: 0; }
+.add-chip { display: grid; place-items: center; width: 36px; padding: 0; color: var(--accent); }
+.add-chip svg { width: 18px; height: 18px; }
+.rest { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-height: 40px; overflow-x: auto; scrollbar-width: none; }
+.rest::-webkit-scrollbar { display: none; }
+.rest .chip { height: 34px; padding: 0 12px; font-size: 14px; }
+.rest-lbl { flex: none; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-2); margin-right: 2px; }
+.rest.running { background: color-mix(in srgb, var(--accent) 14%, var(--card)); border-radius: 12px; padding: 4px 4px 4px 12px; }
+.rest.running .rest-lbl { color: var(--accent); }
+.rest-left { flex: 1; font-size: 24px; font-weight: 850; font-variant-numeric: tabular-nums; }
+.rest .btn { min-height: 36px; padding: 0 12px; font-size: 15px; }
+
+#plans-list { padding: 12px; }
+.btn.small { min-height: 36px; padding: 0 12px; font-size: 15px; }
+.btn.danger-soft { background: color-mix(in srgb, var(--danger) 14%, var(--card-2)); color: var(--danger); }
+.plan-head .card-h { align-items: center; }
+.plan-week { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; margin-bottom: 8px; }
+.plan-week b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.plan-week .aside { font-size: 13px; color: var(--text-2); }
+.plan-edit-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.plan-items .plan-edit-row { margin: 0; padding: 10px 14px 12px; }
+.plan-edit-row .btn { min-height: 38px; padding: 0 12px; font-size: 15px; }
+.plan-add { margin: 0 0 12px; }
+
+.plan-day { background: var(--card); border-radius: 16px; margin-bottom: 10px; overflow: hidden; }
+.plan-day.today { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 70%, transparent); }
+.plan-day-h { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; text-align: left; }
+.plan-day-h:active { background: var(--card-2); }
+.plan-day-h .dow {
+  flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px;
+  background: var(--card-2); font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--text-2);
+}
+.plan-day.today .dow { background: var(--accent); color: var(--accent-ink); }
+.plan-day-h .grow { flex: 1; min-width: 0; }
+.plan-day-h .ttl { display: block; font-weight: 700; overflow-wrap: anywhere; }
+.plan-day-h .sub { display: block; font-size: 13px; color: var(--text-2); margin-top: 1px; }
+.plan-day-h .sub b { color: var(--accent); }
+.plan-day-h .cnt { flex: none; font-size: 14px; font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.plan-day-h .cnt svg { width: 22px; height: 22px; color: var(--ok); }
+.plan-day.complete .dow { background: color-mix(in srgb, var(--ok) 22%, var(--card-2)); color: var(--ok); }
+.plan-day.complete.today .dow { background: var(--ok); color: #0b0b0f; }
+.plan-items { border-top: 1px solid var(--line); }
+
+.plan-item { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+.plan-items > .plan-item:last-of-type { border-bottom: 0; }
+.plan-item .icon-btn { width: 40px; height: 40px; flex: none; }
+.plan-item .icon-btn svg { width: 18px; height: 18px; }
+.tickbox { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 14px; cursor: pointer; -webkit-user-select: none; user-select: none; }
+.tickbox input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.tickbox .box {
+  flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px;
+  border: 2px solid var(--text-3); color: transparent; transition: background .15s, border-color .15s;
+}
+.tickbox .box svg { width: 16px; height: 16px; stroke-width: 3; }
+.tickbox input:checked + .box { background: var(--ok); border-color: var(--ok); color: #0b0b0f; }
+.tickbox input:focus-visible + .box { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tickbox input:disabled + .box { opacity: .5; }
+.plan-txt { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 10px; }
+.plan-txt .nm { font-weight: 600; overflow-wrap: anywhere; }
+.plan-txt .dt { font-size: 15px; font-weight: 650; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.plan-item.done .nm { color: var(--text-3); text-decoration: line-through; text-decoration-color: var(--text-3); }
+.plan-item.done .dt { color: var(--text-3); }
+
+.plan-notes ul { margin: 0; padding-left: 20px; }
+.plan-notes li { margin: 6px 0; font-size: 15px; color: var(--text-2); }
+.textarea { height: auto; min-height: 150px; padding: 10px 12px; line-height: 1.4; resize: vertical; font-family: inherit; }
+.plan-day-h .dow svg { width: 22px; height: 22px; }
