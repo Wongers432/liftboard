@@ -218,9 +218,9 @@
     t('Max has one to-do', f.plans[0].days.flatMap(d => d.items).map(i => i.text).join() === 'Send Oliver personal plan');
     const oli = f.plans[1];
     t('Oliver has 5 days Mon–Fri', oli.days.map(d => d.day).join() === 'Mon,Tue,Wed,Thu,Fri');
-    t('Oliver has 32 exercises', oli.days.flatMap(d => d.items).length === 32, oli.days.flatMap(d => d.items).length);
+    t('Oliver has 37 exercises', oli.days.flatMap(d => d.items).length === 37, oli.days.flatMap(d => d.items).length);
     t('Oliver has 4 progression notes', oli.notes.length === 4);
-    t('plan ids are unique', new Set(f.plans.flatMap(p => p.days.flatMap(d => d.items.map(i => i.id)))).size === 33);
+    t('plan ids are unique', new Set(f.plans.flatMap(p => p.days.flatMap(d => d.items.map(i => i.id)))).size === 38);
     t('old saves get the starter plans', migrate({ version: 1, entries: [] }).plans.length === 2);
     t('an emptied plan list stays empty', migrate({ version: 1, entries: [], plans: [] }).plans.length === 0);
     const mp = migrate({ version: 1, entries: [], plans: [{ id: 'p1', name: ' Sam ', days: [{ id: 'd', day: 'Funday', items: [{ id: 'i', text: 'Row', done: 'nope' }, { id: 'j', text: '' }] }] }, { id: 'p2' }] });
