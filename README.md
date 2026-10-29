@@ -14,6 +14,16 @@ Your Max is compared with standards written for an 80 kg man or a 65 kg woman, s
 
 Each exercise sheet shows the ladder of targets for your bodyweight and what you need for the next division. Set your bodyweight in Settings; without it, ranks assume the reference bodyweight.
 
+## Plans
+
+The **Plans** tab holds a workout plan for each person (it starts with Max and Oliver). Each plan is split by day, with a checkbox per exercise:
+
+- Today's day is highlighted and opens on its own; tap any day to open or close it.
+- Ticks belong to the current week and clear themselves every Monday, so the list is fresh each week.
+- A rest timer (60s, 90s, 2 or 3 min) sits at the top and buzzes when rest is over.
+- Each plan has notes for tips like rest times and when to add weight.
+- Tap **Edit** to add, rename or delete people, days and exercises. Plans are included in Export and Import.
+
 Plain HTML, CSS and JavaScript. No build step, no server, no accounts.
 
 ## Put it online (GitHub Pages)
@@ -40,7 +50,7 @@ Then open http://localhost:8000. Offline mode needs HTTPS or localhost.
 
 | Path | What it is |
 | --- | --- |
-| `index.html` | App shell: top bar, two tabs, sheet, tab bar |
+| `index.html` | App shell: top bar, three tabs, sheet, tab bar |
 | `manifest.webmanifest`, `icons/` | Home-screen name, icon and colours |
 | `sw.js` | Service worker: caches every file so the app works offline |
 | `css/app.css` | All styles, dark and light |
@@ -52,7 +62,8 @@ Then open http://localhost:8000. Offline mode needs HTTPS or localhost.
 | `js/stats.js` | Bests, ranks, volume, streaks, records (pure functions) |
 | `js/charts.js` | Chart.js wrappers and the SVG training calendar |
 | `js/ui.js` | Icons, badge, toast, dialogs, confetti, share image |
-| `js/views/*.js` | Lifts tab, exercise sheet, Progress tab, Settings |
+| `js/plans.js` | Starter plans for Max and Oliver, and the weekly tick helpers |
+| `js/views/*.js` | Lifts tab, exercise sheet, Progress tab, Plans tab, Settings |
 | `vendor/chart.umd.min.js` | Chart.js 4.5.0 (MIT), kept in the repo so charts work offline |
 
 Your data never leaves the phone. Deleting the home-screen icon deletes it, so use **Settings › Export data** now and then.

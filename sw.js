@@ -1,6 +1,6 @@
 // Service worker: precache every app file, serve cache-first, so the app never needs the network after install.
 // Bump CACHE with each release so installed phones pick up the change.
-const CACHE = 'liftboard-v3';
+const CACHE = 'liftboard-v4';
 const FILES = [
   './',
   './index.html',
@@ -15,9 +15,11 @@ const FILES = [
   './js/util.js',
   './js/ui.js',
   './js/charts.js',
+  './js/plans.js',
   './js/views/lifts.js',
   './js/views/sheet.js',
   './js/views/progress.js',
+  './js/views/plans.js',
   './js/views/settings.js',
   './vendor/chart.umd.min.js',
   './icons/180.png',

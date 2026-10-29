@@ -2,6 +2,7 @@
 // Weights are always kilograms.
 
 import { today, uid, isYmd } from './util.js';
+import { DAYS, seedPlans, thisWeek } from './plans.js';
 
 export const KEY = 'liftboard:v1';
 export const VERSION = 1;
@@ -17,6 +18,7 @@ export function fresh() {
     custom: [],
     pinned: [],
     hidden: [],
+    plans: seedPlans(),
     lastBackup: null,
   };
 }
@@ -50,6 +52,20 @@ function cleanCustom(c) {
   return out;
 }
 
+const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+function cleanPlan(p) {
+  if (!p || typeof p.id !== 'string' || !str(p.name, 40)) return null;
+  const days = (Array.isArray(p.days) ? p.days : []).filter(d => d && typeof d.id === 'string').map(d => ({
+    id: d.id, day: DAYS.includes(d.day) ? d.day : '', title: str(d.title, 60),
+    items: (Array.isArray(d.items) ? d.items : []).filter(i => i && typeof i.id === 'string' && str(i.text, 80)).map(i => ({
+      id: i.id, text: str(i.text, 80), detail: str(i.detail, 40), done: isYmd(i.done) ? i.done : null,
+    })),
+  }));
+  const notes = (Array.isArray(p.notes) ? p.notes : []).map(n => str(n, 300)).filter(Boolean);
+  return { id: p.id, name: str(p.name, 40), days, notes };
+}
+
 // Upgrade and sanitise any stored or imported document. Throws on something that is not ours.
 export function migrate(d) {
   if (d == null) return null;
@@ -74,10 +90,12 @@ export function migrate(d) {
     .filter(b => b && isYmd(b.date) && num(b.kg) > 0)
     .map(b => ({ date: b.date, kg: b.kg }));
   const custom = (Array.isArray(d.custom) ? d.custom : []).map(cleanCustom).filter(Boolean);
+  // Documents saved before plans existed get the starter plans.
+  const plans = Array.isArray(d.plans) ? d.plans.map(cleanPlan).filter(Boolean) : base.plans;
   const strs = a => (Array.isArray(a) ? [...new Set(a.filter(x => typeof x === 'string'))] : []);
   return {
     version: VERSION, settings: s, bodyweight, entries, custom,
-    pinned: strs(d.pinned), hidden: strs(d.hidden),
+    pinned: strs(d.pinned), hidden: strs(d.hidden), plans,
     lastBackup: isYmd(d.lastBackup) ? d.lastBackup : null,
   };
 }
@@ -222,6 +240,107 @@ export function setHidden(id, hidden) {
   save();
 }
 
+// ---- Personal plans (saved as 'plans' so only the Plans tab redraws) ----
+const plan = pid => data.plans.find(p => p.id === pid);
+const planDay = (pid, did) => plan(pid)?.days.find(d => d.id === did);
+const savePlans = () => save('plans');
+// Weekdays in order, then undated lists.
+const dayRank = d => (d.day ? DAYS.indexOf(d.day) : 7);
+const sortDays = p => p.days.sort((a, b) => dayRank(a) - dayRank(b));
+
+export function togglePlanItem(pid, itemId) {
+  const item = plan(pid)?.days.flatMap(d => d.items).find(i => i.id === itemId);
+  if (!item) return false;
+  item.done = item.done === thisWeek() ? null : thisWeek();
+  savePlans();
+  return !!item.done;
+}
+export function clearPlanWeek(pid) {
+  for (const d of plan(pid)?.days ?? []) for (const i of d.items) i.done = null;
+  savePlans();
+}
+export function addPerson(name) {
+  const p = cleanPlan({ id: uid('p'), name, days: [], notes: [] });
+  if (!p) throw new Error('Invalid name');
+  data.plans.push(p);
+  savePlans();
+  return p;
+}
+export function renamePerson(pid, name) {
+  const p = plan(pid);
+  if (p && str(name, 40)) { p.name = str(name, 40); savePlans(); }
+}
+export function deletePerson(pid) {
+  const index = data.plans.findIndex(p => p.id === pid);
+  if (index < 0) return null;
+  const [person] = data.plans.splice(index, 1);
+  savePlans();
+  return { person, index };
+}
+export function restorePerson({ person, index }) {
+  if (data.plans.some(p => p.id === person.id)) return;
+  data.plans.splice(Math.min(index, data.plans.length), 0, person);
+  savePlans();
+}
+export function addPlanDay(pid, day, title) {
+  const p = plan(pid);
+  if (!p) return null;
+  const d = { id: uid('d'), day: DAYS.includes(day) ? day : '', title: str(title, 60), items: [] };
+  p.days.push(d);
+  sortDays(p);
+  savePlans();
+  return d;
+}
+export function updatePlanDay(pid, did, day, title) {
+  const d = planDay(pid, did);
+  if (!d) return;
+  d.day = DAYS.includes(day) ? day : '';
+  d.title = str(title, 60);
+  sortDays(plan(pid));
+  savePlans();
+}
+export function deletePlanDay(pid, did) {
+  const p = plan(pid);
+  if (!p) return;
+  p.days = p.days.filter(d => d.id !== did);
+  savePlans();
+}
+export function addPlanItem(pid, did, text, detail = '') {
+  const d = planDay(pid, did);
+  if (!d || !str(text, 80)) return null;
+  const item = { id: uid('i'), text: str(text, 80), detail: str(detail, 40), done: null };
+  d.items.push(item);
+  savePlans();
+  return item;
+}
+export function updatePlanItem(pid, did, itemId, text, detail = '') {
+  const item = planDay(pid, did)?.items.find(i => i.id === itemId);
+  if (!item || !str(text, 80)) return;
+  item.text = str(text, 80);
+  item.detail = str(detail, 40);
+  savePlans();
+}
+export function deletePlanItem(pid, did, itemId) {
+  const d = planDay(pid, did);
+  const index = d?.items.findIndex(i => i.id === itemId) ?? -1;
+  if (index < 0) return null;
+  const [item] = d.items.splice(index, 1);
+  savePlans();
+  return { pid, did, item, index };
+}
+export function restorePlanItem({ pid, did, item, index }) {
+  const d = planDay(pid, did);
+  if (!d || d.items.some(i => i.id === item.id)) return;
+  d.items.splice(Math.min(index, d.items.length), 0, item);
+  savePlans();
+}
+export function setPlanNotes(pid, notes) {
+  const p = plan(pid);
+  if (!p) return;
+  p.notes = notes.map(n => str(n, 300)).filter(Boolean);
+  savePlans();
+}
+
 // ---- Backup ----
 export function exportFile() {
   const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
@@ -261,6 +380,8 @@ export function importData(incoming, mode) {
     for (const c of incoming.custom) if (!cids.has(c.id)) data.custom.push(c);
     data.pinned = [...new Set([...data.pinned, ...incoming.pinned])];
     data.hidden = [...new Set([...data.hidden, ...incoming.hidden])];
+    const pids = new Set(data.plans.map(p => p.id));
+    for (const p of incoming.plans) if (!pids.has(p.id)) data.plans.push(p);
   }
   save('import');
 }

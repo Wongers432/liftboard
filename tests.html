@@ -20,6 +20,7 @@
     import { EXERCISES, GROUPS } from './js/exercises.js';
     import { toDisplay, fromDisplay, weekStart, addDays, dayNum, fmtSec } from './js/util.js';
     import { migrate, fresh } from './js/store.js';
+    import { isDone, thisWeek, todayDay, DAYS } from './js/plans.js';
 
     const out = document.getElementById('out');
     let pass = 0, fail = 0;
@@ -210,6 +211,24 @@
     t('migrate rejects foreign JSON', threw);
     const m = migrate({ version: 1, entries: [{ id: 'x', type: 'set', ex: 'squat', date: '2026-01-01', kg: 100, reps: 5 }, { id: 'x', type: 'set', ex: 'squat', date: '2026-01-01', kg: 1, reps: 1 }, { bad: true }], settings: { unit: 'stone' } });
     t('migrate drops duplicates and junk, fixes settings', m.entries.length === 1 && m.settings.unit === 'kg' && Array.isArray(m.custom));
+
+    // Personal plans
+    const f = fresh();
+    t('fresh data has Max and Oliver', f.plans.map(p => p.name).join() === 'Max,Oliver');
+    t('Max has one to-do', f.plans[0].days.flatMap(d => d.items).map(i => i.text).join() === 'Send Oliver personal plan');
+    const oli = f.plans[1];
+    t('Oliver has 5 days Mon–Fri', oli.days.map(d => d.day).join() === 'Mon,Tue,Wed,Thu,Fri');
+    t('Oliver has 32 exercises', oli.days.flatMap(d => d.items).length === 32, oli.days.flatMap(d => d.items).length);
+    t('Oliver has 4 progression notes', oli.notes.length === 4);
+    t('plan ids are unique', new Set(f.plans.flatMap(p => p.days.flatMap(d => d.items.map(i => i.id)))).size === 33);
+    t('old saves get the starter plans', migrate({ version: 1, entries: [] }).plans.length === 2);
+    t('an emptied plan list stays empty', migrate({ version: 1, entries: [], plans: [] }).plans.length === 0);
+    const mp = migrate({ version: 1, entries: [], plans: [{ id: 'p1', name: ' Sam ', days: [{ id: 'd', day: 'Funday', items: [{ id: 'i', text: 'Row', done: 'nope' }, { id: 'j', text: '' }] }] }, { id: 'p2' }] });
+    t('migrate cleans plans', mp.plans.length === 1 && mp.plans[0].name === 'Sam' && mp.plans[0].days[0].day === '' && mp.plans[0].days[0].items.length === 1 && mp.plans[0].days[0].items[0].done === null);
+    t('a tick from this week counts', isDone({ done: thisWeek() }));
+    t('a tick from last week has cleared', !isDone({ done: addDays(thisWeek(), -7) }));
+    t('this week starts on Monday', new Date(thisWeek() + 'T12:00').getDay() === 1);
+    t('today is a weekday name', DAYS.includes(todayDay()));
 
     // Performance
     const big = fresh();
