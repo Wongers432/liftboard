@@ -12,6 +12,8 @@ Your Max is compared with standards written for an 80 kg man or a 65 kg woman, s
 - **Pull-ups, chin-ups, dips and push-ups:** each rep is harder the more you weigh, so the same reps rank higher for a heavier lifter. Added weight counts on top.
 - **Core (planks, leg raises, rollouts, sit-ups):** the same at every bodyweight.
 
+Each exercise sheet shows the ladder of targets for your bodyweight and what you need for the next division. Set your bodyweight in Settings; without it, ranks assume the reference bodyweight.
+
 ## Plans
 
 The **Plans** tab holds a workout plan for each person (it starts with Max and Oliver). Each plan is split by day, with a checkbox per exercise:
@@ -21,8 +23,6 @@ The **Plans** tab holds a workout plan for each person (it starts with Max and O
 - A rest timer (60s, 90s, 2 or 3 min) sits at the top and buzzes when rest is over.
 - Each plan has notes for tips like rest times and when to add weight.
 - Tap **Edit** to add, rename or delete people, days and exercises. Plans are included in Export and Import.
-
-Each exercise sheet shows the ladder of targets for your bodyweight and what you need for the next division. Set your bodyweight in Settings; without it, ranks assume the reference bodyweight.
 
 Plain HTML, CSS and JavaScript. No build step, no server, no accounts.
 
