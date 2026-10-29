@@ -2,7 +2,7 @@
 // Weights are always kilograms.
 
 import { today, uid, isYmd } from './util.js';
-import { DAYS, seedPlans, thisWeek } from './plans.js';
+import { DAYS, seedPlans, thisWeek, upgradeSeed } from './plans.js';
 
 export const KEY = 'liftboard:v1';
 export const VERSION = 1;
@@ -91,7 +91,7 @@ export function migrate(d) {
     .map(b => ({ date: b.date, kg: b.kg }));
   const custom = (Array.isArray(d.custom) ? d.custom : []).map(cleanCustom).filter(Boolean);
   // Documents saved before plans existed get the starter plans.
-  const plans = Array.isArray(d.plans) ? d.plans.map(cleanPlan).filter(Boolean) : base.plans;
+  const plans = Array.isArray(d.plans) ? d.plans.map(cleanPlan).filter(Boolean).map(upgradeSeed) : base.plans;
   const strs = a => (Array.isArray(a) ? [...new Set(a.filter(x => typeof x === 'string'))] : []);
   return {
     version: VERSION, settings: s, bodyweight, entries, custom,
