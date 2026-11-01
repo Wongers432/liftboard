@@ -29,6 +29,19 @@ function setValue(ex, e, bw) {
   return entryValue(ex, e, bw);
 }
 
+// Entries that can set a rank, each with the entry its strength is measured from (eff).
+export function rankCandidates(ex, entries) {
+  const out = [];
+  for (const e of entries) {
+    if (e.type === 'max') { out.push({ entry: e, eff: e }); continue; }
+    if (e.type !== 'set') continue;
+    if (isWeightKind(ex.kind)) { if (e.kg > 0 && e.reps > 0) out.push({ entry: e, eff: { kg: estMax(e.kg, e.reps) } }); }
+    else if (ex.kind === 'time') { if (e.sec > 0) out.push({ entry: e, eff: e }); }
+    else if (e.reps > 0) out.push({ entry: e, eff: e });
+  }
+  return out;
+}
+
 export function exerciseStats(ex, entries, ctx) {
   const { bwNow, bwAt, standards, today } = ctx;
   const sorted = entries.slice().sort(byDate); // stable: same-day entries keep insertion order
@@ -40,7 +53,7 @@ export function exerciseStats(ex, entries, ctx) {
     lastDate: sorted.length ? sorted[sorted.length - 1].date : null,
     timesTrained: new Set(sorted.map(e => e.date)).size,
     bestSet: null, bestSetValue: null, bestEst: null, lastSet: sets.length ? sets[sets.length - 1] : null,
-    ranked: isRanked(ex), score: null, earned: null, display: null, tierIdx: null, pct: 0, rank: null, next: null, flame: false,
+    ranked: isRanked(ex), rankBy: null, score: null, earned: null, display: null, tierIdx: null, pct: 0, rank: null, next: null, flame: false,
   };
 
   let running = null;
@@ -62,11 +75,20 @@ export function exerciseStats(ex, entries, ctx) {
     }
   }
 
-  if (s.ranked && s.best) {
+  // Every Max and every set can rank you. A weighted set counts as its estimated 1-rep max
+  // (Epley); a reps or time set counts the same as a Max of those reps or seconds.
+  const cands = s.ranked ? rankCandidates(ex, sorted) : [];
+  if (cands.length) {
     const t = thresholds(ex, standards);
     s.thresholds = t;
-    s.score = score(measure(ex, s.best, bwNow, standards), t);
-    s.earned = Math.max(...maxes.map(m => score(measure(ex, m, bwAt(m.date), standards), t)));
+    let top = null;
+    for (const c of cands) {
+      const now = score(measure(ex, c.eff, bwNow, standards), t);
+      if (!top || now > top.score + 1e-9) top = { ...c, score: now };
+    }
+    s.rankBy = { entry: top.entry, eff: top.eff, from: top.entry.type, value: entryValue(ex, top.eff, bwNow) };
+    s.score = top.score;
+    s.earned = Math.max(...cands.map(c => score(measure(ex, c.eff, bwAt(c.entry.date), standards), t)));
     // Ranks never decay: the tier is the best ever earned; the bar shows where you are now.
     s.display = Math.max(s.score, s.earned);
     s.tierIdx = tierIndex(s.display);

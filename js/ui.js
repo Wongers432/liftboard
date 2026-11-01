@@ -247,6 +247,15 @@ export function entryParts(ex, e, unit) {
 }
 // One line of text for an entry: "117.5 kg", "100 × 5", "10 reps +20 kg", "1:30".
 // short drops the unit from weight sets ("100 × 5") for compact lists.
+// What a rank is based on: "Max 100 kg", "90 kg × 5 set (est. 105 kg)" or "12 reps set".
+export function rankBasisText(ex, rankBy, unit) {
+  if (!rankBy) return '';
+  const t = entryText(ex, rankBy.entry, unit);
+  if (rankBy.from === 'max') return `Max ${t}`;
+  if (isWeightKind(ex.kind)) return `${t} set (est. ${fmtNum(toDisplay(rankBy.eff.kg, unit), 1)} ${unit})`;
+  return `${t} set`;
+}
+
 export function entryText(ex, e, unit, short = false) {
   if (isWeightKind(ex.kind)) {
     const w = fmtNum(toDisplay(e.kg, unit));
