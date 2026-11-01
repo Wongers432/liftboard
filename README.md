@@ -1,12 +1,19 @@
 # Liftboard
 
 A gym tracker that installs on your iPhone home screen, works with no signal, and keeps every lift on your phone.
-Log a Max and your sets for 58 common exercises, earn a rank from Bronze to Champion, and watch your progress in graphs.
+Log your sets and Maxes for 58 common exercises, earn a rank from Bronze to Champion, and watch your progress in graphs.
 
 ## How ranks work
 
 There are six tiers (Bronze, Silver, Gold, Platinum, Diamond, Champion), and every tier below Champion has three divisions (III, II, I).
-Your Max is compared with standards written for an 80 kg man or a 65 kg woman, scaled to your bodyweight:
+Your best lift is compared with standards written for an 80 kg man or a 65 kg woman, scaled to your bodyweight.
+Both a logged Max and your everyday sets count, and whichever ranks higher sets your rank:
+
+- **A weighted set** counts as its estimated 1-rep max (Epley: weight × (1 + reps ÷ 30), reps capped at 12). So 100 kg × 5 counts like a 116.7 kg Max, and a heavy set can rank you up without testing a single.
+- **A reps or time set** (pull-ups, dips, push-ups, planks) counts the same as a Max of those reps or seconds.
+- The rank card on each exercise shows which Max or set your rank comes from.
+
+The standards themselves:
 
 - **Weighted lifts:** Platinum is about lifting your own bodyweight (Silver ½×, Gold ¾×, Platinum 1×, Diamond 1.25×, Champion 1.5×; squat and deadlift need 1.5× and 2× for Diamond and Champion). Strength grows with roughly bodyweight^⅔, so a heavier lifter needs more kg but a lower Max ÷ bodyweight for the same tier. At 80 kg a Platinum bench is 80 kg; at 60 kg it is 66 kg (1.10 × bodyweight); at 100 kg it is 93 kg (0.93 × bodyweight).
 - **Pull-ups, chin-ups, dips and push-ups:** each rep is harder the more you weigh, so the same reps rank higher for a heavier lifter. Added weight counts on top.

@@ -6,7 +6,7 @@ import { stats, unit, stepFor, exercise } from '../state.js';
 import { TIERS, isRanked, isWeightKind, isBwAdjusted, entryValue, tierTargets } from '../ranks.js';
 import { maxSeries } from '../stats.js';
 import { maxChart, fmtValue } from '../charts.js';
-import { ICONS, badge, toast, modal, confirmDialog, confetti, rankCardBlob, shareFile, onLongPress, entryParts, entryText } from '../ui.js';
+import { ICONS, badge, toast, modal, confirmDialog, confetti, rankCardBlob, shareFile, onLongPress, entryParts, entryText, rankBasisText } from '../ui.js';
 import { customForm, wireCustomForm, readCustomForm, validName } from './lifts.js';
 import { esc, today, fmtShort, fmtDay, toDisplay, fromDisplay, fmtNum, fmtSec } from '../util.js';
 
@@ -173,8 +173,8 @@ export function renderSheet() {
   let rank;
   if (!ranked) {
     rank = `<div class="grow"><div class="meta"><span>Not ranked</span></div><p class="note" style="margin:0">${ex.custom ? 'Edit this exercise and pick a base lift to rank it.' : ''}</p></div>`;
-  } else if (!s?.best) {
-    rank = `<div class="grow"><div class="meta"><span><b>Unranked</b></span><span>Log a Max to get ranked</span></div><div class="bar"><i style="width:0"></i></div></div>`;
+  } else if (!s?.rank) {
+    rank = `<div class="grow"><div class="meta"><span><b>Unranked</b></span><span>Log a set or Max to get ranked</span></div><div class="bar"><i style="width:0"></i></div></div>`;
   } else {
     const r = s.rank;
     const next = r.nextName ? `${r.pct}% to ${r.nextName}` : 'Top tier';
@@ -205,7 +205,7 @@ export function renderSheet() {
     setsSoFar = `<p class="hint">Last time: <b>${esc(entryText(ex, s.lastSet, u))}</b> on ${fmtShort(s.lastSet.date)}</p>`;
   }
   const setCard = `<form class="card" id="set-card" autocomplete="off">
-    <div class="card-h"><h3>Log a set</h3><span class="aside">Training log · doesn't change rank</span></div>
+    <div class="card-h"><h3>Log a set</h3><span class="aside">Counts toward your rank</span></div>
     ${setsSoFar}
     <div class="form-grid">${setFields}<div class="full">${dateField('setDate', form.setDate)}</div></div>
     <div class="save-row"><button type="button" class="btn primary block" data-act="save-set">Save set${todaySets.length && form.setDate === st.today ? ` ${todaySets.length + 1}` : ''}</button></div>
@@ -223,7 +223,7 @@ export function renderSheet() {
     const shown = Math.round(toDisplay(s.bestEst, u) / step) * step;
     suggest = s.best
       ? `<p class="hint">Your sets suggest about <b>${fmtNum(shown)} ${u}</b>. Time to test a new max?</p>`
-      : `<p class="hint">Your sets suggest about <b>${fmtNum(shown)} ${u}</b>. Log a Max to get ranked.</p>`;
+      : `<p class="hint">Your sets suggest about <b>${fmtNum(shown)} ${u}</b>, and that already counts toward your rank. Log a Max to test it.</p>`;
   }
   const bestLine = s?.best
     ? `<div class="bigmax">${esc(maxP.num)}${maxP.unit ? ` <small>${esc(maxP.unit)}</small>` : ''} <span class="date">· ${fmtShort(s.best.date)}</span></div>`
@@ -239,7 +239,7 @@ export function renderSheet() {
       <div class="save-row"><button type="button" class="btn primary block" data-act="save-max">Save max</button></div></form>`;
   }
   const maxCard = `<div class="card" id="max-card">
-    <div class="card-h"><h3>${ICONS.crown.replace('<svg', '<svg style="display:inline;width:18px;height:18px;vertical-align:-2px;margin-right:4px"')}Max</h3><span class="aside">${ex.kind === 'time' ? 'Longest hold' : ex.kind === 'reps' ? 'Most reps in one set' : 'Heaviest single'}${ranked ? ' · sets your rank' : ''}</span></div>
+    <div class="card-h"><h3>${ICONS.crown.replace('<svg', '<svg style="display:inline;width:18px;height:18px;vertical-align:-2px;margin-right:4px"')}Max</h3><span class="aside">${ex.kind === 'time' ? 'Longest hold' : ex.kind === 'reps' ? 'Most reps in one set' : 'Heaviest single'}${ranked ? ' · counts toward rank' : ''}</span></div>
     <div class="max-row">${bestLine}<button type="button" class="btn ${maxOpen ? '' : 'primary-soft'}" data-act="toggle-max" aria-expanded="${maxOpen}">${maxOpen ? 'Cancel' : s?.best ? 'New Max' : 'Log Max'}</button></div>
     <p class="max-meta">${meta}</p>
     ${suggest}${maxForm}
@@ -325,14 +325,14 @@ function rankCardHTML(ex, s, st, u) {
   let rungs = '';
   for (let i = 5; i >= 0; i--) {
     const state = i < cur ? 'done' : i === cur ? 'here' : 'locked';
-    const need = i === 0 ? 'Any Max' : fmtTarget(ex, targets[i - 1], u);
+    const need = i === 0 ? 'Any set' : fmtTarget(ex, targets[i - 1], u);
     const name = i === cur && s.rank.div != null ? s.rank.name : TIERS[i];
     rungs += `<div class="rung tier-${i} ${state}">${badge(i)}<span class="nm">${name}</span>${i === cur ? '<span class="you">You</span>' : ''}<span class="need">${need}</span></div>`;
   }
   let next = '';
   if (s?.next) {
     let gap = '';
-    const best = s.bestValue;
+    const best = s.rankBy.value;
     const shownTarget = fmtTarget(ex, s.next.value, u);
     if (isWeightKind(ex.kind)) {
       const step = stepFor(u);
@@ -341,8 +341,8 @@ function rankCardHTML(ex, s, st, u) {
     } else if (ex.kind === 'time') {
       const d = Math.ceil(s.next.value - 1e-6) - best;
       if (d > 0) gap = ` · ${fmtSec(d)} to go`;
-    } else if (!s.best.added) {
-      const d = Math.max(1, Math.ceil(s.next.value - 1e-6)) - s.best.reps;
+    } else if (!s.rankBy.eff.added) {
+      const d = Math.max(1, Math.ceil(s.next.value - 1e-6)) - s.rankBy.eff.reps;
       if (d > 0) gap = ` · ${d} more ${d === 1 ? 'rep' : 'reps'}`;
     }
     next = `<div class="next-up tier-${Math.min(5, Math.floor((s.rank.step + 1) / 3))}"><span>Next</span><b class="tier-text">${s.next.name}</b><span class="at">at ${shownTarget}${gap}</span></div>`;
@@ -358,6 +358,7 @@ function rankCardHTML(ex, s, st, u) {
   return `<div class="card rank-card">
     <div class="card-h"><h3>Rank</h3><span class="aside">${ex.kind === 'perdb' ? 'Per dumbbell' : ''}</span></div>
     ${next}
+    ${s?.rankBy ? `<p class="note rank-basis">Ranked from your best: <b>${esc(rankBasisText(ex, s.rankBy, u))}</b> · ${fmtShort(s.rankBy.entry.date)}</p>` : ''}
     <div class="ladder">${rungs}</div>
     <p class="note bw-note">${bwLine}${unitNote}</p>
   </div>`;
@@ -422,7 +423,7 @@ async function askBodyweight() {
   const u = unit();
   const v = await modal({
     title: 'Your bodyweight',
-    body: `<p>Ranks compare your Max to your bodyweight. You can change it any time in Settings.</p>
+    body: `<p>Ranks compare your best Max or set to your bodyweight. You can change it any time in Settings.</p>
       <form><div class="field"><label for="bw-in">Bodyweight (${u})</label><input class="input" id="bw-in" type="text" inputmode="decimal" autocomplete="off"></div></form>`,
     onMount: w => setTimeout(() => w.querySelector('#bw-in').focus(), 50),
     actions: [{ label: 'Skip', value: null }, { label: 'Save', kind: 'primary', value: w => parseFloat(w.querySelector('#bw-in').value.replace(',', '.')) }],
@@ -477,9 +478,17 @@ function saveSet() {
   const ex = exercise(exId);
   const r = buildEntry(ex, 'set');
   if (r.error) return showError(r);
+  const old = stats().byEx.get(exId);
+  const oldTier = old?.tierIdx ?? -1, oldStep = old?.rank?.step ?? -1;
   const entry = store.addEntry({ type: 'set', ex: exId, ...r });
+  const s2 = stats().byEx.get(exId);
   flashId = entry.id;
-  renderSheet();
+  if (s2?.rank && s2.rank.step > oldStep) {
+    celebrate = { rankup: { ...s2.rank, tierUp: s2.tierIdx > oldTier } };
+    confetti();
+    renderSheet();
+    sheet.querySelector('.sheet-body').scrollTo({ top: 0, behavior: 'smooth' });
+  } else renderSheet();
   toast(`Set saved: ${entryText(ex, entry, unit())}`, { duration: 2000 });
 }
 
@@ -582,7 +591,7 @@ async function onClick(e) {
       const r = celebrate?.rankup;
       if (!r) return;
       const s = stats().byEx.get(exId);
-      const blob = await rankCardBlob({ heading: r.tierUp ? 'Rank up' : 'Promoted', tierIdx: r.tierIdx, name: r.name, line1: ex.name, line2: `Max ${fmtValue(ex, s.bestValue, unit())} · ${fmtShort(s.best.date)}` });
+      const blob = await rankCardBlob({ heading: r.tierUp ? 'Rank up' : 'Promoted', tierIdx: r.tierIdx, name: r.name, line1: ex.name, line2: `${rankBasisText(ex, s.rankBy, unit())} · ${fmtShort(s.rankBy.entry.date)}` });
       return shareFile(new File([blob], `liftboard-${ex.id}-${r.name.toLowerCase().replace(/ /g, '-')}.png`, { type: 'image/png' }), `${r.name} on ${ex.name}`);
     }
   }

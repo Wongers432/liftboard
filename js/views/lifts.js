@@ -87,11 +87,11 @@ function rowHTML(ex, st, u) {
     if (s.best) {
       const p = entryParts(ex, s.best, u);
       val = `<b>${esc(p.num)}</b>${p.unit ? `<small>${esc(p.unit)}</small>` : ''}`;
-      b = badge(s.tierIdx, 'sm', s.rank?.div ?? null);
     } else if (s.bestSet) {
       const p = entryParts(ex, s.bestSet, u);
       val = `<span class="muted"><b>${esc(p.num)}</b>${p.unit ? `<small>${esc(p.unit)}</small>` : ''}<span class="tag">set</span></span>`;
     }
+    if (s.tierIdx != null) b = badge(s.tierIdx, 'sm', s.rank?.div ?? null);
   }
   if (ex.custom) sub += ' · Custom';
   return `<button type="button" class="row" data-ex="${esc(ex.id)}">

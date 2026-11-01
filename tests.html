@@ -149,13 +149,17 @@
     t('bench is Diamond I, next Champion at 120 kg', b.rank.name === 'Diamond I' && b.next.name === 'Champion' && near(b.next.value, 120), `${b.rank.name} ${b.next?.value}`);
     t('overall has a division', /^(Bronze|Silver|Gold|Platinum|Diamond) (I|II|III)$|^Champion$/.test(st.overall.rank.name), st.overall.rank.name);
     t('lower later Max does not create a PR', b.prs.length === 1);
-    t('sets with no Max: no rank', st.byEx.get('squat').tierIdx === null && st.byEx.get('squat').bestSet.kg === 120);
+    const sq = st.byEx.get('squat');
+    t('sets with no Max still rank: 120 kg × 5 squat (est. 140) at 80 kg is Diamond', sq.tierIdx === 4 && sq.bestSet.kg === 120, sq.tierIdx);
+    t('squat rank comes from the set', sq.rankBy?.from === 'set' && sq.rankBy.entry.id === 'd' && near(sq.rankBy.value, 140), JSON.stringify(sq.rankBy));
+    t('a lighter set does not beat a heavier Max', b.rankBy.from === 'max' && b.rankBy.entry.id === 'a');
+    t('squat with only sets counts toward overall', st.groups.legs?.ex === 'squat');
     t('squat estimated max from sets', near(st.byEx.get('squat').bestEst, 140));
     t('plank 90s = Gold', st.byEx.get('plank').tierIdx === 2);
     t('entries for unknown exercises ignored', !st.byEx.has('deleted-custom'));
     t('workouts = distinct days', st.workoutDays.size === 3, st.workoutDays.size);
     t('total volume', st.totalVolume === 117.5 + 500 + 110 + 600 + 180, st.totalVolume);
-    t('overall ranked with ≥3 groups', st.overall.ranked && st.overall.groupsRanked === 3, st.overall.groupsRanked);
+    t('overall ranked with ≥3 groups (legs ranked from squat sets)', st.overall.ranked && st.overall.groupsRanked === 4, st.overall.groupsRanked);
     t('chest group uses best chest exercise', near(st.groups.chest.score, Math.max(b.score, st.byEx.get('dip').score)));
     t('radar groups with no Max are null', st.groups.shoulders === null && st.groups.arms === null);
     t('flame for PR in last 7 days', st.byEx.get('plank').flame && !st.byEx.get('deadlift').flame);
@@ -176,6 +180,7 @@
     const saved = doc.entries.splice(0, 1);
     st = computeAll(doc, lib, T);
     t('deleting best Max falls back to next best', st.byEx.get('bench-press').bestValue === 110);
+    t('…and the rank falls back to the 100 kg × 5 set (est. 116.7)', st.byEx.get('bench-press').rankBy.from === 'set' && near(st.byEx.get('bench-press').rankBy.value, 100 * (1 + 5 / 30)));
     doc.entries.unshift(...saved);
 
     // Custom exercises
@@ -185,6 +190,27 @@
     st = computeAll(doc, [...lib, ...custom], T);
     t('custom with base lift is ranked', st.byEx.get('c_belt').tierIdx != null);
     t('custom without base lift shows no badge', st.byEx.get('c_x').tierIdx === null);
+
+    // Sets count toward rank
+    {
+      const d2 = fresh();
+      d2.bodyweight = [{ date: '2026-10-01', kg: 80 }];
+      d2.entries = [
+        { id: 'p1', type: 'set', ex: 'pull-up', date: '2026-10-13', reps: 12 },
+        { id: 'p2', type: 'set', ex: 'pull-up', date: '2026-10-13', reps: 0 },
+        { id: 'k1', type: 'set', ex: 'plank', date: '2026-10-13', sec: 125 },
+        { id: 'o1', type: 'set', ex: 'overhead-press', date: '2026-10-13', kg: 60, reps: 1 },
+      ];
+      const s2 = computeAll(d2, lib, T);
+      const pu = s2.byEx.get('pull-up'), pk = s2.byEx.get('plank'), op = s2.byEx.get('overhead-press');
+      t('12 pull-ups in a set ranks like a 12-rep Max', pu.rankBy?.entry.id === 'p1' && pu.tierIdx === 2, pu.tierIdx);
+      t('125 s plank set is Platinum', pk.tierIdx === 3, pk.tierIdx);
+      t('a single in a set counts as that weight', near(op.rankBy.value, 60) && near(op.score, 1 + (60 / 80 - 0.5) / 0.25), op.score);
+      t('sets alone can give an overall rank', s2.overall.ranked && s2.overall.groupsRanked === 3, s2.overall.groupsRanked);
+      d2.bodyweight.push({ date: '2026-10-14', kg: 100 });
+      const s3 = computeAll(d2, lib, T);
+      t('a set earned at a lighter bodyweight keeps its tier', s3.byEx.get('overhead-press').tierIdx === op.tierIdx);
+    }
 
     // Streak
     const days = new Set(['2026-10-13', '2026-10-06', '2026-09-29', '2026-09-15']);

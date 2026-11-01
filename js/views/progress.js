@@ -6,7 +6,7 @@ import { stats, unit } from '../state.js';
 import { TIERS, isWeightKind, tierTargets } from '../ranks.js';
 import { streakWeeks, newMaxesThisMonth, weeklyVolume, heatmap, maxSeries } from '../stats.js';
 import { maxChart, volumeChart, radarChart, heatmapSVG, TIER_HEX } from '../charts.js';
-import { ICONS, badge, rankCardBlob, shareFile, entryText } from '../ui.js';
+import { ICONS, badge, rankCardBlob, shareFile, entryText, rankBasisText } from '../ui.js';
 import { esc, fmtShort, fmtTotal, fmtNum, fmtSec, toDisplay, today } from '../util.js';
 
 let root, hooks;
@@ -69,7 +69,7 @@ export function renderProgress() {
     </div>`;
   } else {
     overall = `<div class="card overall"><div class="eyebrow">Overall rank</div><div class="tier-name" style="color:var(--text-2)">Unranked</div>
-      <p class="score" style="margin-top:6px">Log a Max in 3 muscle groups to get ranked.</p>
+      <p class="score" style="margin-top:6px">Log sets or a Max in 3 muscle groups to get ranked.</p>
       <div class="bar"><i style="width:${(o.groupsRanked / 3) * 100}%"></i></div>
       <div class="to-next">${o.groupsRanked} of 3 groups</div>${bwLine}</div>`;
   }
@@ -104,10 +104,10 @@ export function renderProgress() {
 
   // 8. Exercise ranks
   const ranked = [...st.byEx.values()].filter(s => s.tierIdx != null).sort((a, b) => b.display - a.display);
-  const rankList = ranked.map(s => `<button type="button" class="li" data-ex="${esc(s.ex.id)}">${badge(s.tierIdx)}<div class="grow"><div class="t">${esc(s.ex.name)}</div><div class="s">${esc(entryText(s.ex, s.best, u))}${s.next ? ` · next ${s.next.name}` : ''}</div>
+  const rankList = ranked.map(s => `<button type="button" class="li" data-ex="${esc(s.ex.id)}">${badge(s.tierIdx)}<div class="grow"><div class="t">${esc(s.ex.name)}</div><div class="s">${esc(rankBasisText(s.ex, s.rankBy, u))}${s.next ? ` · next ${s.next.name}` : ''}</div>
     <div class="bar thin tier-${s.tierIdx}"><i style="width:${s.next ? s.rank.pct : 100}%"></i></div></div>
     <div class="r tier-${s.tierIdx}"><span class="tier-text">${s.rank.name}</span><small>${s.display.toFixed(2)}</small></div></button>`).join('');
-  const ranks = `<div class="card"><div class="card-h"><h3>Exercise ranks</h3><span class="aside">${ranked.length} ranked</span></div>${rankList ? `<div class="list">${rankList}</div>` : '<p class="note">Log a Max on any exercise to rank it.</p>'}</div>`;
+  const ranks = `<div class="card"><div class="card-h"><h3>Exercise ranks</h3><span class="aside">${ranked.length} ranked</span></div>${rankList ? `<div class="list">${rankList}</div>` : '<p class="note">Log a set or Max on any exercise to rank it.</p>'}</div>`;
 
   root.innerHTML = `<div class="progress">${overall}${tiles}${radar}${maxCard}${vol}${cal}${records}${ranks}</div>`;
 
